@@ -636,6 +636,7 @@ def create_avatar_objects(num_players,
 
 def create_lab2d_settings(
     num_players: int,
+    level_map: str,
     avatar_taste_kwargs: Optional[Any] = None,
     fixed_teams: Optional[bool] = False) -> Dict[str, Any]:
   """Returns the lab2d settings."""
@@ -647,7 +648,7 @@ def create_lab2d_settings(
       "spriteSize": 8,
       "topology": "BOUNDED",  # Choose from ["BOUNDED", "TORUS"],
       "simulation": {
-          "map": DEFAULT_ASCII_MAP,
+          "map": level_map,
           "gameObjects": create_avatar_objects(num_players,
                                                taste_kwargs=avatar_taste_kwargs,
                                                fixed_teams=fixed_teams),
@@ -659,12 +660,12 @@ def create_lab2d_settings(
   return lab2d_settings
 
 
-def get_config(factory=create_lab2d_settings):
+def get_config(factory=create_lab2d_settings, num_players: int = 8, level_map: str = DEFAULT_ASCII_MAP):
   """Default configuration for training on the king_of_the_hill level."""
   config = config_dict.ConfigDict()
 
-  config.num_players = 8
-  config.lab2d_settings = factory(config.num_players)
+  config.num_players = num_players
+  config.lab2d_settings = factory(config.num_players, level_map)
 
   # Action set configuration.
   config.action_set = ACTION_SET

@@ -7,3 +7,10 @@ venv/
 # Ignored because these are saved agent models added by the pettingzoo example.
 examples/results/
 *.egg-info
+
+# Custom IDE specific files and folders.
+.envrc
+.idea/
+
+# A place to dump tutorials while learning MARL.
+learning/
