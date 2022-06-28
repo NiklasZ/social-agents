@@ -34,7 +34,6 @@ def main():
     # Up to 8 agents can be used.
     num_agents = 2 # env.max_num_agents
     env_config = get_config(num_players=num_agents)
-    #env_config = substrate.get_config(env_name)
     env = meltingpot_env.parallel_env(env_config)
     episode_len = 1000
     total_timesteps = 2000000

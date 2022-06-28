@@ -14,6 +14,7 @@
 """PettingZoo interface to meltingpot environments."""
 
 import functools
+from typing import Optional
 
 import dm_env
 from gym import spaces
@@ -33,140 +34,140 @@ _WORLD_PREFIX = 'WORLD.'
 
 
 def parallel_env(env_config, max_cycles=MAX_CYCLES):
-  return _ParallelEnv(env_config, max_cycles)
+    return _ParallelEnv(env_config, max_cycles)
 
 
 def raw_env(env_config, max_cycles=MAX_CYCLES):
-  return pettingzoo_utils.parallel_to_aec_wrapper(
-      parallel_env(env_config, max_cycles))
+    return pettingzoo_utils.parallel_to_aec_wrapper(
+        parallel_env(env_config, max_cycles))
 
 
 def env(env_config, max_cycles=MAX_CYCLES):
-  aec_env = raw_env(env_config, max_cycles)
-  aec_env = wrappers.AssertOutOfBoundsWrapper(aec_env)
-  aec_env = wrappers.OrderEnforcingWrapper(aec_env)
-  return aec_env
+    aec_env = raw_env(env_config, max_cycles)
+    aec_env = wrappers.AssertOutOfBoundsWrapper(aec_env)
+    aec_env = wrappers.OrderEnforcingWrapper(aec_env)
+    return aec_env
 
 
 def _timestep_to_observations(timestep: dm_env.TimeStep):
-  gym_observations = {}
-  for index, observation in enumerate(timestep.observation):
-    gym_observations[PLAYER_STR_FORMAT.format(index=index)] = {
-        key: value
-        for key, value in observation.items()
-        if _WORLD_PREFIX not in key
-    }
-  return gym_observations
+    gym_observations = {}
+    for index, observation in enumerate(timestep.observation):
+        gym_observations[PLAYER_STR_FORMAT.format(index=index)] = {
+            key: value
+            for key, value in observation.items()
+            if _WORLD_PREFIX not in key
+        }
+    return gym_observations
 
 
 def _remove_world_observations_from_space(
-    observation: spaces.Dict) -> spaces.Dict:
-  return spaces.Dict({
-      key: observation[key] for key in observation if _WORLD_PREFIX not in key
-  })
+        observation: spaces.Dict) -> spaces.Dict:
+    return spaces.Dict({
+        key: observation[key] for key in observation if _WORLD_PREFIX not in key
+    })
 
 
 def _spec_to_space(spec: tree.Structure[dm_env.specs.Array]) -> spaces.Space:
-  """Converts a dm_env nested structure of specs to a Gym Space.
+    """Converts a dm_env nested structure of specs to a Gym Space.
 
-  BoundedArray is converted to Box Gym spaces. DiscreteArray is converted to
-  Discrete Gym spaces. Using Tuple and Dict spaces recursively as needed.
+    BoundedArray is converted to Box Gym spaces. DiscreteArray is converted to
+    Discrete Gym spaces. Using Tuple and Dict spaces recursively as needed.
 
-  Args:
-    spec: The nested structure of specs
+    Args:
+      spec: The nested structure of specs
 
-  Returns:
-    The Gym space corresponding to the given spec.
-  """
-  if isinstance(spec, dm_env.specs.DiscreteArray):
-    return spaces.Discrete(spec.num_values)
-  elif isinstance(spec, dm_env.specs.BoundedArray):
-    return spaces.Box(spec.minimum, spec.maximum, spec.shape, spec.dtype)
-  elif isinstance(spec, dm_env.specs.Array):
-    if np.issubdtype(spec.dtype, np.floating):
-      return spaces.Box(-np.inf, np.inf, spec.shape, spec.dtype)
-    elif np.issubdtype(spec.dtype, np.integer):
-      info = np.iinfo(spec.dtype)
-      return spaces.Box(info.min, info.max, spec.shape, spec.dtype)
+    Returns:
+      The Gym space corresponding to the given spec.
+    """
+    if isinstance(spec, dm_env.specs.DiscreteArray):
+        return spaces.Discrete(spec.num_values)
+    elif isinstance(spec, dm_env.specs.BoundedArray):
+        return spaces.Box(spec.minimum, spec.maximum, spec.shape, spec.dtype)
+    elif isinstance(spec, dm_env.specs.Array):
+        if np.issubdtype(spec.dtype, np.floating):
+            return spaces.Box(-np.inf, np.inf, spec.shape, spec.dtype)
+        elif np.issubdtype(spec.dtype, np.integer):
+            info = np.iinfo(spec.dtype)
+            return spaces.Box(info.min, info.max, spec.shape, spec.dtype)
+        else:
+            raise NotImplementedError(f'Unsupported dtype {spec.dtype}')
+    elif isinstance(spec, (list, tuple)):
+        return spaces.Tuple([_spec_to_space(s) for s in spec])
+    elif isinstance(spec, dict):
+        return spaces.Dict({key: _spec_to_space(s) for key, s in spec.items()})
     else:
-      raise NotImplementedError(f'Unsupported dtype {spec.dtype}')
-  elif isinstance(spec, (list, tuple)):
-    return spaces.Tuple([_spec_to_space(s) for s in spec])
-  elif isinstance(spec, dict):
-    return spaces.Dict({key: _spec_to_space(s) for key, s in spec.items()})
-  else:
-    raise ValueError('Unexpected spec: {}'.format(spec))
+        raise ValueError('Unexpected spec: {}'.format(spec))
 
 
 class _MeltingPotPettingZooEnv(pettingzoo_utils.ParallelEnv):
-  """An adapter between Melting Pot substrates and PettingZoo's ParallelEnv."""
+    """An adapter between Melting Pot substrates and PettingZoo's ParallelEnv."""
 
-  def __init__(self, env_config, max_cycles):
-    self.env_config = config_dict.ConfigDict(env_config)
-    self.max_cycles = max_cycles
-    self._env = substrate.build(self.env_config)
-    self._num_players = len(self._env.observation_spec())
-    self.possible_agents = [
-        PLAYER_STR_FORMAT.format(index=index)
-        for index in range(self._num_players)
-    ]
-    observation_space = _remove_world_observations_from_space(
-        _spec_to_space(self._env.observation_spec()[0]))
-    self.observation_space = functools.lru_cache(
-        maxsize=None)(lambda agent_id: observation_space)
-    action_space = _spec_to_space(self._env.action_spec()[0])
-    self.action_space = functools.lru_cache(maxsize=None)(
-        lambda agent_id: action_space)
-    self.state_space = _spec_to_space(
-        self._env.observation_spec()[0]['WORLD.RGB'])
+    def __init__(self, env_config, max_cycles):
+        self.env_config = config_dict.ConfigDict(env_config)
+        self.max_cycles = max_cycles
+        self._env = substrate.build(self.env_config)
+        self._num_players = len(self._env.observation_spec())
+        self.possible_agents = [
+            PLAYER_STR_FORMAT.format(index=index)
+            for index in range(self._num_players)
+        ]
+        observation_space = _remove_world_observations_from_space(
+            _spec_to_space(self._env.observation_spec()[0]))
+        self.observation_space = functools.lru_cache(
+            maxsize=None)(lambda agent_id: observation_space)
+        action_space = _spec_to_space(self._env.action_spec()[0])
+        self.action_space = functools.lru_cache(maxsize=None)(
+            lambda agent_id: action_space)
+        self.state_space = _spec_to_space(
+            self._env.observation_spec()[0]['WORLD.RGB'])
 
-  def state(self):
-    return self._env.observation()
+    def state(self):
+        return self._env.observation()
 
-  def reset(self, seed=None):
-    """See base class."""
-    timestep = self._env.reset()
-    self.agents = self.possible_agents[:]
-    self.num_cycles = 0
-    return _timestep_to_observations(timestep)
+    def reset(self, seed: Optional[int], options: Optional[dict]):
+        """See base class."""
+        timestep = self._env.reset()
+        self.agents = self.possible_agents[:]
+        self.num_cycles = 0
+        return _timestep_to_observations(timestep)
 
-  def step(self, action):
-    """See base class."""
-    actions = [action[agent] for agent in self.agents]
-    timestep = self._env.step(actions)
-    rewards = {
-        agent: timestep.reward[index] for index, agent in enumerate(self.agents)
-    }
-    self.num_cycles += 1
-    done = timestep.last() or self.num_cycles >= self.max_cycles
-    dones = {agent: done for agent in self.agents}
-    infos = {agent: {} for agent in self.agents}
-    if done:
-      self.agents = []
+    def step(self, action):
+        """See base class."""
+        actions = [action[agent] for agent in self.agents]
+        timestep = self._env.step(actions)
+        rewards = {
+            agent: timestep.reward[index] for index, agent in enumerate(self.agents)
+        }
+        self.num_cycles += 1
+        done = timestep.last() or self.num_cycles >= self.max_cycles
+        dones = {agent: done for agent in self.agents}
+        infos = {agent: {} for agent in self.agents}
+        if done:
+            self.agents = []
 
-    observations = _timestep_to_observations(timestep)
-    return observations, rewards, dones, infos
+        observations = _timestep_to_observations(timestep)
+        return observations, rewards, dones, infos
 
-  def close(self):
-    """See base class."""
-    self._env.close()
+    def close(self):
+        """See base class."""
+        self._env.close()
 
-  def render(self, mode='human', filename=None):
-    rgb_arr = self.state()['WORLD.RGB']
-    if mode == 'human':
-      plt.cla()
-      plt.imshow(rgb_arr, interpolation='nearest')
-      if filename is None:
-        plt.show(block=False)
-      else:
-        plt.savefig(filename)
-      return None
-    return rgb_arr
+    def render(self, mode='human', filename=None):
+        rgb_arr = self.state()['WORLD.RGB']
+        if mode == 'human':
+            plt.cla()
+            plt.imshow(rgb_arr, interpolation='nearest')
+            if filename is None:
+                plt.show(block=False)
+            else:
+                plt.savefig(filename)
+            return None
+        return rgb_arr
 
 
 class _ParallelEnv(_MeltingPotPettingZooEnv, gym_utils.EzPickle):
-  metadata = {'render_modes': ['human', 'rgb_array']}
+    metadata = {'render_modes': ['human', 'rgb_array']}
 
-  def __init__(self, env_config, max_cycles):
-    gym_utils.EzPickle.__init__(self, env_config, max_cycles)
-    _MeltingPotPettingZooEnv.__init__(self, env_config, max_cycles)
+    def __init__(self, env_config, max_cycles):
+        gym_utils.EzPickle.__init__(self, env_config, max_cycles)
+        _MeltingPotPettingZooEnv.__init__(self, env_config, max_cycles)
