@@ -47,8 +47,6 @@ class CustomCNN(torch_layers.BaseFeaturesExtractor):
 
     def forward(self, observations) -> torch.Tensor:
         # Convert to tensor, rescale to [0, 1], and convert from
-        #   B x H x W x C to B x C x H x W
-        observations = observations.permute(0, 3, 1, 2)
         features = self.conv(observations)
         features = F.relu(self.fc1(features))
         features = F.relu(self.fc2(features))
