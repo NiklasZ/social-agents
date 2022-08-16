@@ -6,7 +6,7 @@
 [![meltingpot-tests](../../actions/workflows/ci.yml/badge.svg)](../../actions/workflows/ci.yml)
 
 <div align="center">
-  <img src="meltingpot/docs/images/meltingpot_montage_360.gif"
+  <img src="docs/images/meltingpot_montage_360.gif"
        alt="Melting Pot substrates" />
 </div>
 
@@ -35,13 +35,35 @@ reinforcement learning. We plan to maintain it, and will be extending it in the
 coming years to cover more social interactions and generalization scenarios.
 
 If you are interested in extending Melting Pot, please refer to the
-[Extending Melting Pot](meltingpot/docs/extending.md)
-documentation.
+[Extending Melting Pot](docs/extending.md) documentation.
 
 ## Installation
 
 Melting Pot is built on top of
-[DeepMind Lab2D](https://github.com/deepmind/lab2d). The installation steps are
+[DeepMind Lab2D](https://github.com/deepmind/lab2d). 
+
+### Devcontainer (x86 only)
+
+*NOTE: This Devcontainer only works for x86 platforms. For arm64 (newer M1 Macs) users will have to follow the manual installation steps.*
+
+This project includes a pre-configured development environment ([devcontainer](https://containers.dev)).
+
+You can launch a working development environment with one click, using e.g. [Github
+Codespaces](https://github.com/features/codespaces) or the [VSCode
+Containers](https://code.visualstudio.com/docs/remote/containers-tutorial)
+extension.
+
+#### CUDA support
+
+To enable CUDA support (required for GPU training), make sure you have the
+[nvidia-container-toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html)
+package installed, and then run Docker with the `---gpus all` flag enabled. Note
+that for GitHub Codespaces this isn't necessary, as it's done for you
+automatically.
+
+### Manual install
+
+The installation steps are
 as follows (see [`install.sh`](https://github.com/deepmind/meltingpot/blob/main/install.sh)
 for an example installation script):
 
@@ -49,19 +71,21 @@ for an example installation script):
 
     ```shell
     python3 -m venv "${HOME}/meltingpot_venv"
-    source meltingpot_venv/bin/activate
+    source "${HOME}/meltingpot_venv/bin/activate"
     ```
 
 2.  Install `dmlab2d` from the
-    [dmlab2d wheel files](https://github.com/deepmind/lab2d/releases/tag/release_candidate_2021-07-13), e.g.:
+    [dmlab2d wheel files](https://github.com/deepmind/lab2d/releases/tag/release_candidate_2022-03-24), e.g.:
 
     ```shell
-    pip3 install https://github.com/deepmind/lab2d/releases/download/release_candidate_2021-07-13/dmlab2d-1.0-cp39-cp39-manylinux_2_31_x86_64.whl
+    pip3 install https://github.com/deepmind/lab2d/releases/download/release_candidate_2022-03-24/dmlab2d-1.0-cp39-cp39-manylinux_2_31_x86_64.whl
     ```
 
     If there is no appropriate wheel (e.g. M1 chipset) you will need to install
     [`dmlab2d`](https://github.com/deepmind/lab2d) and build the wheel yourself
-    using `bazel build -c opt --config=lua5_1 //dmlab2d:dmlab2d_wheel`.
+    (see
+    [`install.sh`](https://github.com/deepmind/meltingpot/blob/main/install.sh)
+    for an example installation script that can be adapted to your setup).
 
 3.  Test the `dmlab2d` installation in `python3`:
 
@@ -149,8 +173,7 @@ python3 sb3_train.py
 
 ### Documentation
 
-Full documentation is available
-[here](meltingpot/docs/index.md)
+Full documentation is available [here](docs/index.md).
 
 ## Citing Melting Pot
 

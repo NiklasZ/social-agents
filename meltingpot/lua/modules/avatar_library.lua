@@ -87,6 +87,10 @@ function Avatar:__init__(kwargs)
       -- `skipWaitStateRewards` (bool) default True. When true, do not reward
       -- avatars when they are in wait state.
       {'skipWaitStateRewards', args.default(true), args.booleanType},
+      -- `randomizeInitialOrientation` (bool) default True. Avatar orientations
+      -- are assigned randomly at the start of each episode. If you instead
+      -- set this to false then initial Avatar orientation is always North.
+      {'randomizeInitialOrientation', args.default(true), args.booleanType},
   })
   Avatar.Base.__init__(self, kwargs)
   self._config.kwargs = kwargs
@@ -107,6 +111,7 @@ function Avatar:__init__(kwargs)
   self._config.liveStatesSet = set.Set(self._config.liveStates)
 
   self._config.skipWaitStateRewards = kwargs.skipWaitStateRewards
+  self._config.randomizeInitialOrientation = kwargs.randomizeInitialOrientation
 end
 
 -- Call initializeVolatileVariables during `awake` and `reset`.
@@ -282,7 +287,11 @@ function Avatar:start(locator)
       actions = actions
   }
   local targetTransform = self.gameObject._grid:transform(locator)
-  targetTransform.orientation = random:choice(_COMPASS)
+  if self._config.randomizeInitialOrientation then
+    targetTransform.orientation = random:choice(_COMPASS)
+  else
+    targetTransform.orientation = 'N'
+  end
 
   local uniqueState = self.gameObject:getUniqueState(
     self.gameObject:getState())
@@ -448,6 +457,11 @@ end
 function Avatar:disallowMovementUntil(numFrames)
   self:disallowMovement()
   self._freezeCounter = numFrames
+end
+
+--[[ Return true if movement is allowed and false otherwise.]]
+function Avatar:isMovementAllowed()
+  return self._movementAllowed
 end
 
 --[[ Remove the avatar (set it to wait state) after `delay` elapsed timesteps.]]
@@ -635,6 +649,12 @@ function Zapper:onHit(hittingGameObject, hitName)
     -- Temporarily store the index of the zapper avatar in state so it can
     -- be observed elsewhere.
     self.zapperIndex = zapperIndex
+    -- Temporarily record that the zapper hit another player on this frame.
+    if hittingGameObject:hasComponent('Zapper') then
+      local hittingZapper = hittingGameObject:getComponent('Zapper')
+      hittingZapper.num_others_player_zapped_this_step = (
+          hittingZapper.num_others_player_zapped_this_step + 1)
+    end
     -- return `true` to prevent the beam from passing through a hit player.
     return true
   end
@@ -648,6 +668,7 @@ function Zapper:reset()
   self.playerRespawnedThisStep = false
   self._disallowZapping = false
   self._noZappingCounter = 0
+  self.num_others_player_zapped_this_step = 0
 end
 
 function Zapper:start()
@@ -673,6 +694,7 @@ function Zapper:update()
   -- Metrics must be read from preUpdate since they will get reset in update.
   self.playerRespawnedThisStep = false
   self.zapperIndex = nil
+  self.num_others_player_zapped_this_step = 0
   -- Note: After zapping is allowed again after having been disallowed, players
   -- still need to wait another `cooldownTime` frames before they can zap again.
   if self._disallowZapping then

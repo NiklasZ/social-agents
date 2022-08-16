@@ -13,7 +13,10 @@
 # limitations under the License.
 """Install script for setuptools."""
 
+import platform
 import setuptools
+
+IS_M1_MAC = platform.system() == 'Darwin' and platform.machine() == 'arm64'
 
 setuptools.setup(
     name='dm-meltingpot',
@@ -61,15 +64,24 @@ setuptools.setup(
         'numpy',
         'pygame',
         'rx',
-        'tensorflow',
+        'tensorflow-macos' if IS_M1_MAC else 'tensorflow',
     ],
     extras_require={
+        # Dependencies required for rllib example.
         'rllib': [
+            'dm-tree',
             'gym',
-            'ray[rllib,default]==1.11.0',
+            'ray[rllib,default]==1.13.0',
         ],
+        # Dependencies required for pettingzoo example.
         'pettingzoo': [
-            'pettingzoo>=1.18.0', 'supersuit>=3.3.0', 'stable-baselines3'
+            'dm-tree',
+            'gym',
+            'matplotlib',
+            'pettingzoo>=1.18.0',
+            'stable-baselines3',
+            'supersuit>=3.3.0',
+            'torch',
         ],
     },
 )
