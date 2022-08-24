@@ -12,3 +12,9 @@
 # Ignore saved models.
 /examples/results/
 /meltingpot/assets/
+
+/.idea
+/king_of_the_hill/wandb_api_key.txt
+/king_of_the_hill/baseline
+/king_of_the_hill/results
+.envrc
