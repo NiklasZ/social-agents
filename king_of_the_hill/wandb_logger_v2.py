@@ -8,10 +8,13 @@ but will not reach the release version yet. The changes are fairly simple so I c
 import enum
 import os
 import pickle
+from collections import deque
 from collections.abc import Sequence
 from multiprocessing import Process, Queue
 from numbers import Number
 from typing import Any, Callable, Dict, List, Optional, Tuple
+from zipfile import ZipFile
+
 import numpy as np
 import urllib
 
@@ -258,32 +261,39 @@ class _WandbLoggingProcess(Process):
 
     def _handle_checkpoint(self, checkpoint_path: str):
         checkpoint_dir = os.path.dirname(checkpoint_path)
-        checkpoint_folder_name = os.path.basename(checkpoint_dir)
         run_dir = os.path.dirname(checkpoint_dir)
         run_folder_name = os.path.basename(run_dir)
-        run_timestamp = run_dir[-19:] # The timestamp is 19 characters long. Hacky, but oh well.
         all_runs_dir = os.path.dirname(run_dir)
-        archive_path = shutil.make_archive(checkpoint_folder_name, 'zip', root_dir=checkpoint_dir)
-        shutil.move(archive_path, run_dir)
-        tf_logging_file_name = os.path.basename(glob.glob(f'{run_dir}/events.out.tfevents*')[0])
+        all_runs_dir = os.path.dirname(run_dir)
 
-        with open(f'{run_dir}/info.txt', 'w') as writer:
-            writer.write(f'{run_folder_name}'
-                         f'\n{run_timestamp}'
-                         f'\n{checkpoint_folder_name}'
-                         f'\n{tf_logging_file_name}')
+
+        if os.path.exists(f'{checkpoint_dir}.zip'):
+            os.remove(f'{checkpoint_dir}.zip')
+        shutil.make_archive(checkpoint_dir, 'zip', root_dir=checkpoint_dir)
+
+        # with open(f'{run_dir}/info.txt', 'w') as writer:
+        #     writer.write(f'{run_folder_name}')
+
+        with ZipFile(f'{all_runs_dir}.zip', 'w') as myzip:
+            for f in [d for d in os.listdir(all_runs_dir) if os.path.isfile(f'{all_runs_dir}/{d}') and '.zip' not in d]:
+                myzip.write(f'{all_runs_dir}/{f}', arcname=f)
+            for f in [d for d in os.listdir(run_dir) if os.path.isfile(f'{run_dir}/{d}') and '.zip' not in d]:
+                myzip.write(f'{run_dir}/{f}', arcname=f'{run_folder_name}/{f}')
+
+        wandb.run.save(f'{all_runs_dir}.zip', policy='now')
+
 
         # Save training state files
-        wandb.run.save(f'{run_dir}/info.txt', policy='now')
-        wandb.run.save(f'{all_runs_dir}/basic-variant-state-{run_timestamp}.json', policy='now')
-        wandb.run.save(f'{all_runs_dir}/experiment_state-{run_timestamp}.json', policy='now')
-
-        # Save run dir files
-        wandb.run.save(f'{run_dir}/{tf_logging_file_name}', policy='now')
-        wandb.run.save(f'{run_dir}/params.json', policy='now')
-        wandb.run.save(f'{run_dir}/params.pkl', policy='now')
-        wandb.run.save(f'{run_dir}/progress.csv', policy='now')
-        wandb.run.save(f'{run_dir}/result.json', policy='now')
+        #wandb.run.save(f'{run_dir}/info.txt', policy='now')
+        # wandb.run.save(f'{all_runs_dir}/basic-variant-state-*.json', policy='now')
+        # wandb.run.save(f'{all_runs_dir}/experiment_state-*.json', policy='now')
+        #
+        # # Save run dir files
+        # wandb.run.save(f'{run_dir}/events.out.tfevents*', policy='now')
+        # wandb.run.save(f'{run_dir}/params.json', policy='now')
+        # wandb.run.save(f'{run_dir}/params.pkl', policy='now')
+        # wandb.run.save(f'{run_dir}/progress.csv', policy='now')
+        # wandb.run.save(f'{run_dir}/result.json', policy='now')
 
         # Save checkpoint model data
         wandb.run.save(f'{checkpoint_dir}.zip', policy='now')

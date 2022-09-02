@@ -10,7 +10,14 @@ from gym import spaces
 # TODO maybe I should shift these to config["multiagent"]["observation_fn"] instead
 # Not really a wrapper as it inherits from MeltingPotEnv rather than gym.wrappers, but this is necessary
 # as a regular wrapper won't work without using the melting pot adapter.
-class RGBObservationWrapper(MeltingPotEnv):
+
+# Extracts information to use for later metric calculation
+class InfoExtractorWrapper(MeltingPotEnv):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+
+class RGBObservationWrapper(InfoExtractorWrapper):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.observation_space = get_rgb_space(self.observation_space)

@@ -1,19 +1,27 @@
 import copy
-import os
 from typing import Dict
 import ray
 from ml_collections import ConfigDict
 from ml_collections.config_dict import config_dict
 from ray.rllib.agents.ppo import PPOTrainer
-from ray.rllib.agents.registry import get_trainer_class
-from ray.rllib.models import ModelCatalog
 from ray.rllib.policy.policy import PolicySpec
-from ray.tune import tune
 from ray.tune.registry import register_env
-from examples.rllib import utils
-from king_of_the_hill.baseline.preprocessor import RGBObservationWrapper, FrameStacker
+from king_of_the_hill.custom_metrics import MetricsCallbacks
+from king_of_the_hill.playable_maps import PLAYABLE_MAPS
+from king_of_the_hill.preprocessor import FrameStacker
 from meltingpot.python import substrate
 from meltingpot.python.configs.substrates.king_of_the_hill import get_config
+import re
+
+
+# Gets trailing number from a string.
+# E.g "Bananas123" yields 123
+def get_trailing_number(s: str) -> int:
+    m = re.search(r'\d+$', s)
+    if m:
+        return int(m.group())
+    else:
+        raise Exception(f"No number found at the end of '{s}'")
 
 
 # A wrapper constructor
@@ -25,38 +33,60 @@ def wrapped_env_constructor(env_config: ConfigDict):
 
 
 def get_alg_config(run_config: Dict) -> Dict:
-    # 1. The agent algorithm to use
+    # The agent algorithm to use
     # PPO
     config = copy.deepcopy(
         ray.rllib.agents.ppo.PPOConfig().to_dict()
     )
 
-    # 2. Set environment config
-    env_config = get_config(num_players=run_config['num_agents'])
+    # Choose a map to play
+    map_name = run_config['map_name']
+    if map_name not in PLAYABLE_MAPS:
+        raise Exception(f"Map named {map_name} not found."
+                        f" Available maps are: {', '.join(list(PLAYABLE_MAPS.keys()))}")
+
+    # Set environment config
+    env_config = get_config(num_players=run_config['num_agents'],
+                            play_map=PLAYABLE_MAPS[map_name]['map'],
+                            map_dimensions=PLAYABLE_MAPS[map_name]['dimensions'])
     config['env_config'] = env_config
 
-    # 3. Register env constructor and name
+    # Register env constructor and name
     register_env('meltingpot', wrapped_env_constructor)
     config['env'] = 'meltingpot'
 
-    # 4. Extract space dimensions
+    # Extract space dimensions
     test_env = wrapped_env_constructor(config['env_config'])
 
-    # 5. Specify policy
-    # Configuration for multiagent setup with policy sharing:
-    config['multiagent'] = {
-        'policies': {
-            'av':
-                PolicySpec(
-                    policy_class=None,  # use default policy
-                    observation_space=test_env.observation_space['player_0'],
-                    action_space=test_env.action_space['player_0'],
-                    config={},
-                ),
-        },
-        'policy_mapping_fn': lambda agent_id, episode, worker, **kwargs: 'av',
-        'count_steps_by': 'env_steps',
-    }
+    # Specify policy
+    # Every agent gets a separate policy
+    if run_config['multi_model']:
+        policies = {f'policy{i}': PolicySpec(
+            policy_class=None,  # use default policy
+            observation_space=test_env.observation_space[f'player_{i}'],
+            action_space=test_env.action_space[f'player_{i}'],
+            config={},
+        ) for i in range(0, run_config['num_agents'])}
+        config['multiagent'] = {
+            'policies': policies,
+            'policy_mapping_fn': lambda agent_id, episode, worker, **kwargs: f'policy{get_trailing_number(agent_id)}',
+            'count_steps_by': 'env_steps',
+        }
+    # Every agent shares the same policy
+    else:
+        config['multiagent'] = {
+            'policies': {
+                'av':
+                    PolicySpec(
+                        policy_class=None,  # use default policy
+                        observation_space=test_env.observation_space['player_0'],
+                        action_space=test_env.action_space['player_0'],
+                        config={},
+                    ),
+            },
+            'policy_mapping_fn': lambda agent_id, episode, worker, **kwargs: 'av',
+            'count_steps_by': 'env_steps',
+        }
 
     # Set number of GPUs to use
     config['num_gpus'] = run_config['num_gpus']
@@ -86,6 +116,7 @@ def get_alg_config(run_config: Dict) -> Dict:
 
     # Setup for the neural network.
     config['model'] = {}
+    config['callbacks'] = MetricsCallbacks
     # The strides of the first convolutional layer were chosen to perfectly line
     # up with the sprites, which are 8x8.
     # The final layer must be chosen specifically so that its output is
@@ -112,4 +143,5 @@ def get_alg_config(run_config: Dict) -> Dict:
     # Sets the number of environments to explore simultaneously. Not Sure if it is beneficial to change this.
     config['num_envs_per_worker'] = 1
 
+    config = {k: v for k, v in config.items() if v is not None}  # filter out None values
     return config

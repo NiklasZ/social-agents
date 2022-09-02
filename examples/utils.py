@@ -30,7 +30,7 @@ def timestep_to_observations(timestep: dm_env.TimeStep) -> Mapping[str, Any]:
     gym_observations[PLAYER_STR_FORMAT.format(index=index)] = {
         key: value
         for key, value in observation.items()
-        if _WORLD_PREFIX not in key
+        #if _WORLD_PREFIX not in key
     }
   return gym_observations
 
@@ -38,7 +38,7 @@ def timestep_to_observations(timestep: dm_env.TimeStep) -> Mapping[str, Any]:
 def remove_world_observations_from_space(
     observation: spaces.Dict) -> spaces.Dict:
   return spaces.Dict({
-      key: observation[key] for key in observation if _WORLD_PREFIX not in key
+      key: observation[key] for key in observation# if _WORLD_PREFIX not in key
   })
 
 

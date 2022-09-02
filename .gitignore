@@ -15,6 +15,8 @@
 
 /.idea
 /king_of_the_hill/wandb_api_key.txt
-/king_of_the_hill/baseline
 /king_of_the_hill/results
+/king_of_the_hill/ray_results
+/king_of_the_hill/baseline/videos
 .envrc
+wandb

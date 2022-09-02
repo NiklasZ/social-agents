@@ -157,7 +157,7 @@ class RayModelPolicy(policy.Policy):
         observations = {
             key: value
             for key, value in timestep.observation.items()
-            if 'WORLD' not in key
+            #if 'WORLD' not in key
         }
 
         action, state, _ = self._model.compute_single_action(
