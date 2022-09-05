@@ -1,0 +1,44 @@
+# Describes models to use for training.
+# NOTE: try not to change existing entries and instead add new ones.
+# Every entry should contain enough information to create and train the model. This means things such as:
+# - hyper-parameters
+# - environment preprocessors
+
+from ml_collections.config_dict import config_dict
+from king_of_the_hill.preprocessor import FrameStacker
+from meltingpot.python import substrate
+
+
+def get_cnn_env_constructor(stack_frames: int):
+    def constructor(env_config):
+        env = substrate.build(config_dict.ConfigDict(env_config))
+        env = FrameStacker(env, stack_frames=stack_frames)
+        return env
+
+    return constructor
+
+
+MODELS = {
+    'basic_cnn_4x': {
+        'env_constructor': get_cnn_env_constructor(4),
+        'model_config': {
+            'conv_filters': [[16, [8, 8], 8], [128, [11, 11], 1]],
+            'conv_activation': 'relu',
+            'post_fcnet_hiddens': [256],
+            'post_fcnet_activation': 'relu'
+        },
+        'notes': 'This is a 2-layer CNN, where the first layer has 16 kernels, of 8x8 size, with a stride of 8. '
+                 'The stride was deliberately chosen to be the same as the size of 8x8 sprites. As a result, each'
+                 'convolution with a kernel is of a sprite.'
+    },
+    'basic_cnn_8x': {
+        'env_constructor': get_cnn_env_constructor(8),
+        'model_config': {
+            'conv_filters': [[16, [8, 8], 8], [128, [11, 11], 1]],
+            'conv_activation': 'relu',
+            'post_fcnet_hiddens': [256],
+            'post_fcnet_activation': 'relu'
+        },
+        'notes': 'Same as basic_cnn_4x, but we stack 8 frames for a longer memory on the agent'
+    },
+}

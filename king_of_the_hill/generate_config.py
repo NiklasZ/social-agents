@@ -7,6 +7,7 @@ from ray.rllib.agents.ppo import PPOTrainer
 from ray.rllib.policy.policy import PolicySpec
 from ray.tune.registry import register_env
 from king_of_the_hill.custom_metrics import MetricsCallbacks
+from king_of_the_hill.models import MODELS
 from king_of_the_hill.playable_maps import PLAYABLE_MAPS
 from king_of_the_hill.preprocessor import FrameStacker
 from meltingpot.python import substrate
@@ -24,12 +25,12 @@ def get_trailing_number(s: str) -> int:
         raise Exception(f"No number found at the end of '{s}'")
 
 
-# A wrapper constructor
-def wrapped_env_constructor(env_config: ConfigDict):
-    """Outputs an environment for registering."""
-    env = substrate.build(config_dict.ConfigDict(env_config))
-    env = FrameStacker(env)
-    return env
+# # A wrapper constructor
+# def wrapped_env_constructor(env_config: ConfigDict):
+#     """Outputs an environment for registering."""
+#     env = substrate.build(config_dict.ConfigDict(env_config))
+#     env = FrameStacker(env)
+#     return env
 
 
 def get_alg_config(run_config: Dict) -> Dict:
@@ -45,18 +46,23 @@ def get_alg_config(run_config: Dict) -> Dict:
         raise Exception(f"Map named {map_name} not found."
                         f" Available maps are: {', '.join(list(PLAYABLE_MAPS.keys()))}")
 
+    # Check chosen model exists
+    assert run_config['model_name'] in MODELS, f"Model {run_config['model_name']} not found in available models: " \
+                                               f"{', '.join(MODELS.keys())}"
+    model_description = MODELS[run_config['model_name']]
+
     # Set environment config
     env_config = get_config(num_players=run_config['num_agents'],
                             play_map=PLAYABLE_MAPS[map_name]['map'],
                             map_dimensions=PLAYABLE_MAPS[map_name]['dimensions'])
     config['env_config'] = env_config
-
+    env_constructor = model_description['env_constructor']
     # Register env constructor and name
-    register_env('meltingpot', wrapped_env_constructor)
+    register_env('meltingpot', env_constructor)
     config['env'] = 'meltingpot'
 
     # Extract space dimensions
-    test_env = wrapped_env_constructor(config['env_config'])
+    test_env = env_constructor(config['env_config'])
 
     # Specify policy
     # Every agent gets a separate policy
@@ -114,28 +120,19 @@ def get_alg_config(run_config: Dict) -> Dict:
     # If no_done_at_end = True, environment is not resetted
     # when dones[__all__]= True.
 
-    # Setup for the neural network.
-    config['model'] = {}
+    # Set model config
+    config['model'] = model_description['model_config']
+
     config['callbacks'] = MetricsCallbacks
-    # The strides of the first convolutional layer were chosen to perfectly line
-    # up with the sprites, which are 8x8.
-    # The final layer must be chosen specifically so that its output is
-    # [B, 1, 1, X]. See the explanation in
-    # https://docs.ray.io/en/latest/rllib-models.html#built-in-models. It is
-    # because rllib is unable to flatten to a vector otherwise.
-    # The a3c models used as baselines in the meltingpot paper were not run using
-    # rllib, so they used a different configuration for the second convolutional
-    # layer. It was 32 channels, [4, 4] kernel shape, and stride = 1.
-    config['model']['conv_filters'] = [[16, [8, 8], 8], [128, [11, 11], 1]]
-    config['model']['conv_activation'] = 'relu'
-    config['model']['post_fcnet_hiddens'] = [256]
-    config['model']['post_fcnet_activation'] = 'relu'
+    # config['model']['conv_filters'] = [[16, [8, 8], 8], [128, [11, 11], 1]]
+    # config['model']['conv_activation'] = 'relu'
+    # config['model']['post_fcnet_hiddens'] = [256]
+    # config['model']['post_fcnet_activation'] = 'relu'
     # config['model']['use_lstm'] = True
     # config['model']['lstm_use_prev_action'] = True
     # config['model']['lstm_use_prev_reward'] = False
     # config['model']['lstm_cell_size'] = 256
 
-    # config['framework'] = 'torch'  # set pytorch framework
     config['framework'] = 'tf2'  # set tensorflow framework
     config['num_cpus_per_worker'] = run_config['cpus_per_worker']
     # Speeds up tf evaluation, but makes debugging difficult

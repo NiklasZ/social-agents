@@ -7,17 +7,16 @@ from examples.rllib.utils import MeltingPotEnv
 from gym import spaces
 
 
-# TODO maybe I should shift these to config["multiagent"]["observation_fn"] instead
 # Not really a wrapper as it inherits from MeltingPotEnv rather than gym.wrappers, but this is necessary
 # as a regular wrapper won't work without using the melting pot adapter.
 
 # Extracts information to use for later metric calculation
-class InfoExtractorWrapper(MeltingPotEnv):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+# class InfoExtractorWrapper(MeltingPotEnv):
+#     def __init__(self, *args, **kwargs):
+#         super().__init__(*args, **kwargs)
 
 
-class RGBObservationWrapper(InfoExtractorWrapper):
+class RGBObservationWrapper(MeltingPotEnv):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.observation_space = get_rgb_space(self.observation_space)
@@ -45,8 +44,8 @@ def get_rgb_space(obs_dict: spaces.Dict) -> spaces.Dict:
 # Loosely inspired by ray/rllib/env/wrappers/atari_wrappers.py
 class FrameStacker(RGBObservationWrapper):
     def __init__(self, *args, **kwargs):
+        self.k = kwargs.pop('stack_frames') if 'stack_frames' in kwargs else 4
         super().__init__(*args, **kwargs)
-        self.k = kwargs['stack_frames'] if 'stack_frames' in kwargs else 4
         player_ids = self.observation_space.keys()
         self.frames = {p: deque([], maxlen=self.k) for p in player_ids}
         player_0 = list(player_ids)[0]
@@ -76,5 +75,3 @@ class FrameStacker(RGBObservationWrapper):
 
     def _stack_obs(self):
         return {p: np.concatenate(self.frames[p], axis=2) for p in self.frames.keys()}
-
-# def gert

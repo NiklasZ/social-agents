@@ -1,6 +1,8 @@
 import argparse
 from time import time
 
+from king_of_the_hill.models import MODELS
+
 
 def get_run_args():
     parser = argparse.ArgumentParser(description='King of the Hill Agent')
@@ -37,6 +39,9 @@ def get_run_args():
                             help='how cpus to allocate per worker process')
     parser_new.add_argument('--map-name', type=str, required=False, default='default',
                             help='name of the map to play KotH on. New maps can be added to the PLAYABLE_MAPS dict')
+    parser_new.add_argument('--model-name', type=str, required=True,
+                            help='Which model to use for training. Available models are: '
+                                 f"{', '.join(MODELS.keys())}")
     parser_new.add_argument('--multi-model', action=argparse.BooleanOptionalAction, required=False, default=False,
                             help='if set lets each agent have its own model instance for both'
                                  ' value function and policy. '

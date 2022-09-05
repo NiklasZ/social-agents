@@ -2,7 +2,7 @@ import ray
 from ray.tune import tune
 from king_of_the_hill.arg_parser import get_run_args
 from king_of_the_hill.generate_config import get_alg_config
-from king_of_the_hill.wandb_api import get_api_key, sync_from_wandb
+from king_of_the_hill.wandb_api import get_api_key, download_train_state
 from king_of_the_hill.wandb_logger_v2 import AnotherWandbLoggerCallback
 
 
@@ -18,7 +18,7 @@ def train(run_config: dict):
 
     if run_config['command'] == 'resume':
         print(f"Resuming wandb run {run_config['run_id']}")
-        config = sync_from_wandb(rllib_path=rllib_path, api_key=api_key, run_config=run_config)
+        config, run_config = download_train_state(rllib_path=rllib_path, api_key=api_key, run_config=run_config)
 
         results = tune.run(agent_algorithm,
                            config=config,

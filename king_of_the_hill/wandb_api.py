@@ -27,16 +27,22 @@ def find_run_folder(all_runs_dir: str) -> str:
     return folder_names[0]
 
 
-def sync_from_wandb(rllib_path: str,
-                    api_key: str,
-                    run_config: Dict,
-                    sync_checkpoints: Optional[List[str]] = None) -> Dict:
-    api = wandb.Api(api_key=api_key)
-    run_path = f"{run_config['entity_name']}/{run_config['wandb_project_name']}/{run_config['run_id']}"
-    run = api.run(run_path)
+def download_config(run_config: Dict, run) -> (Dict, Dict):
     combined_config = run.config
     run_config = combined_config['run_config'] | run_config  # merge configs
     config = get_alg_config(run_config)
+    print('Downloaded environment and run configs')
+    return config, run_config
+
+
+def download_train_state(rllib_path: str,
+                         api_key: str,
+                         run_config: Dict) -> (Dict, Dict):
+    wandb.login(key=api_key)
+    api = wandb.Api(api_key=api_key)
+    run_path = f"{run_config['entity_name']}/{run_config['wandb_project_name']}/{run_config['run_id']}"
+    run = api.run(run_path)
+    config, run_config = download_config(run_config, run)
 
     all_runs_dir = f"{rllib_path}/{run_config['rllib_run_name']}"
     make_if_not_exists(all_runs_dir)
@@ -55,8 +61,7 @@ def sync_from_wandb(rllib_path: str,
     print('Downloading checkpoint files...')
 
     # Note this will probably get really slow if there are many checkpoints to download
-    checkpoint_filter = (lambda x: x in sync_checkpoints) if sync_checkpoints else True
-    checkpoint_file_names = [file.name for file in run.files() if 'checkpoint' in file.name and checkpoint_filter(file)]
+    checkpoint_file_names = [file.name for file in run.files() if 'checkpoint' in file.name]
     for name in tqdm.tqdm(checkpoint_file_names):
         wandb.restore(name, run_path=run_path, root=run_dir)
         checkpoint_dir = f'{run_dir}/{os.path.splitext(name)[0]}'
@@ -64,4 +69,23 @@ def sync_from_wandb(rllib_path: str,
         shutil.unpack_archive(f'{checkpoint_dir}.zip', extract_dir=checkpoint_dir)
         os.remove(f'{checkpoint_dir}.zip')
 
-    return config
+    return config, run_config
+
+
+def download_evaluation_state(rllib_path: str,
+                              api_key: str,
+                              run_config: Dict,
+                              checkpoint_folder: str) -> (str, Dict, Dict):
+    run_path = f"{run_config['entity_name']}/{run_config['wandb_project_name']}/{run_config['run_id']}"
+    wandb.login(key=api_key)
+    api = wandb.Api(api_key=api_key)
+    run = api.run(run_path)
+    config, run_config = download_config(run_config, run)
+    evaluation_dir = f"{rllib_path}/{run_config['rllib_run_name']}/evaluation"
+    checkpoint_dir = f'{evaluation_dir}/{checkpoint_folder}'
+    make_if_not_exists(evaluation_dir)
+    wandb.restore(f'{checkpoint_folder}.zip', run_path=run_path, root=evaluation_dir)
+    shutil.unpack_archive(f'{checkpoint_dir}.zip', extract_dir=checkpoint_dir)
+    print(f"Downloaded checkpoint to {checkpoint_dir}")
+
+    return checkpoint_dir, config, run_config
