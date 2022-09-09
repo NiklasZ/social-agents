@@ -4,8 +4,8 @@ from time import time
 from king_of_the_hill.models import MODELS
 
 
-def get_run_args():
-    parser = argparse.ArgumentParser(description='King of the Hill Agent')
+def get_train_args():
+    parser = argparse.ArgumentParser(description='King of the Hill Agent Training')
     subparsers = parser.add_subparsers(help='sub-command help', dest='command')
     subparsers.required = True
 
@@ -61,4 +61,23 @@ def get_run_args():
         if not args.group_name:
             args.group_name = args.map_name
 
+    return args
+
+
+def get_evaluation_args():
+    parser = argparse.ArgumentParser(description='King of the Hill Agent Evaluation')
+    parser.add_argument('--run-id', type=str, required=True,
+                        help='supply the wandb ID of the run to resume.')
+    parser.add_argument('--checkpoint-number', type=int, required=True,
+                        help='the number of the checkpoint to evaluate')
+    parser.add_argument('--episodes', type=int, required=False, default=1,
+                        help='the number of episodes to evaluate')
+    parser.add_argument('--entity-name', type=str, required=False, default='ece-239-as',
+                        help="name of the entity whose run should be resumed")
+    parser.add_argument('--wandb-project-name', required=False, type=str, default='social_marl_koth',
+                        help="the wandb's project name")
+    parser.add_argument('--verbose',  action=argparse.BooleanOptionalAction, required=False,
+                        help='Set when you would like to log more information during the evaluation runs.')
+
+    args = parser.parse_args()
     return args

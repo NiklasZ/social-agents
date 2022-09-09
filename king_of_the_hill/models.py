@@ -9,6 +9,10 @@ from king_of_the_hill.preprocessor import FrameStacker
 from meltingpot.python import substrate
 
 
+def get_model(name: str):
+    assert name in MODELS, f"Model {name} not found in available models: {', '.join(MODELS.keys())}"
+    return MODELS[name]
+
 def get_cnn_env_constructor(stack_frames: int):
     def constructor(env_config):
         env = substrate.build(config_dict.ConfigDict(env_config))

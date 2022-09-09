@@ -7,7 +7,7 @@ from ray.rllib.agents.ppo import PPOTrainer
 from ray.rllib.policy.policy import PolicySpec
 from ray.tune.registry import register_env
 from king_of_the_hill.custom_metrics import MetricsCallbacks
-from king_of_the_hill.models import MODELS
+from king_of_the_hill.models import get_model
 from king_of_the_hill.playable_maps import PLAYABLE_MAPS
 from king_of_the_hill.preprocessor import FrameStacker
 from meltingpot.python import substrate
@@ -46,10 +46,8 @@ def get_alg_config(run_config: Dict) -> Dict:
         raise Exception(f"Map named {map_name} not found."
                         f" Available maps are: {', '.join(list(PLAYABLE_MAPS.keys()))}")
 
-    # Check chosen model exists
-    assert run_config['model_name'] in MODELS, f"Model {run_config['model_name']} not found in available models: " \
-                                               f"{', '.join(MODELS.keys())}"
-    model_description = MODELS[run_config['model_name']]
+    # Get model description
+    model_description = get_model(run_config['model_name'])
 
     # Set environment config
     env_config = get_config(num_players=run_config['num_agents'],

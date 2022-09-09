@@ -1,12 +1,13 @@
 import ray
 from ray.tune import tune
-from king_of_the_hill.arg_parser import get_run_args
+from king_of_the_hill.arg_parser import get_train_args
 from king_of_the_hill.generate_config import get_alg_config
 from king_of_the_hill.wandb_api import get_api_key, download_train_state
 from king_of_the_hill.wandb_logger_v2 import AnotherWandbLoggerCallback
 
 
 # TODO make wandb optional
+# TODO fix wandb logging on resume
 def train(run_config: dict):
     # 6. Initialize ray, train and save
 
@@ -67,5 +68,5 @@ def train(run_config: dict):
 
 
 if __name__ == "__main__":
-    args = vars(get_run_args())
+    args = vars(get_train_args())
     train(args)
