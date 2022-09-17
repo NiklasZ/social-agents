@@ -5,7 +5,9 @@
 # - environment preprocessors
 
 from ml_collections.config_dict import config_dict
-from king_of_the_hill.preprocessor import FrameStacker
+
+from examples.rllib.utils import MeltingPotEnv
+from king_of_the_hill.preprocessor import FrameStacker, RGBObservationWrapper, FullRGBObservationWrapper
 from meltingpot.python import substrate
 
 
@@ -13,9 +15,23 @@ def get_model(name: str):
     assert name in MODELS, f"Model {name} not found in available models: {', '.join(MODELS.keys())}"
     return MODELS[name]
 
+
 def get_cnn_env_constructor(stack_frames: int):
     def constructor(env_config):
         env = substrate.build(config_dict.ConfigDict(env_config))
+        env = MeltingPotEnv(env)
+        env = RGBObservationWrapper(env)
+        env = FrameStacker(env, stack_frames=stack_frames)
+        return env
+
+    return constructor
+
+
+def get_fully_observable_cnn_env_constructor(world_height: int, world_width: int, stack_frames: int):
+    def constructor(env_config):
+        env = substrate.build(config_dict.ConfigDict(env_config))
+        env = MeltingPotEnv(env)
+        env = FullRGBObservationWrapper(env, world_height, world_width)
         env = FrameStacker(env, stack_frames=stack_frames)
         return env
 
@@ -44,5 +60,25 @@ MODELS = {
             'post_fcnet_activation': 'relu'
         },
         'notes': 'Same as basic_cnn_4x, but we stack 8 frames for a longer memory on the agent'
+    },
+    'fully_obs_cnn_8x': {
+        'env_constructor': get_fully_observable_cnn_env_constructor(13, 13, 8),
+        'model_config': {
+            'conv_filters': [[16, [8, 8], 8], [128, [13, 13], 1]],
+            'conv_activation': 'relu',
+            'post_fcnet_hiddens': [256],
+            'post_fcnet_activation': 'relu'
+        },
+        'notes': '8x frame-stacked CNN that uses a fully observable 13x13 map. '
+    },
+    'basic_cnn_lstm': {
+        'env_constructor': get_fully_observable_cnn_env_constructor(13, 13, 8),
+        'model_config': {
+            'conv_filters': [[16, [8, 8], 8], [128, [13, 13], 1]],
+            'conv_activation': 'relu',
+            'post_fcnet_hiddens': [256],
+            'post_fcnet_activation': 'relu'
+        },
+        'notes': '8x frame-stacked CNN that uses a fully observable 13x13 map. '
     },
 }

@@ -16,17 +16,10 @@ def evaluate(run_config: Dict):
     checkpoint_folder = f"checkpoint_{run_config['checkpoint_number']:06}"
     checkpoint_name = f"checkpoint-{run_config['checkpoint_number']}"
     api_key = get_api_key()
-    # run_config = {
-    #     'run_id': '91fe4_00000',
-    #     'entity_name': 'ece-239-as',
-    #     'wandb_project_name': 'social_marl_koth',
-    # }
     checkpoint_path, config, run_config = download_evaluation_state(rllib_path=rllib_path,
                                                                     run_config=run_config,
                                                                     api_key=api_key,
                                                                     checkpoint_folder=checkpoint_folder)
-    # all_runs_dir = f"{rllib_path}/{run_config['rllib_run_name']}"
-    # run_folder = find_run_folder(all_runs_dir)
     path = f"{checkpoint_path}/{checkpoint_name}"
     agent = ppo.PPOTrainer(config=config)
     agent.restore(path)
@@ -36,7 +29,7 @@ def evaluate(run_config: Dict):
     now = datetime.now()
     timestamp = now.strftime("%m-%d-%Y-%H-%M-%S")
     recordable_env = RecordVideo(test_env, f"videos/{run_config['rllib_run_name']}", video_length=1000,
-                                 name_prefix=f'{checkpoint_name}-{timestamp}-')  # 1000 steps is one episode
+                                 name_prefix=f'{checkpoint_name}-{timestamp}-')  # 1000 steps is one
 
     for episode in range(run_config['episodes']):
         print(f'==Episode {episode}==')
@@ -44,7 +37,6 @@ def evaluate(run_config: Dict):
         obs = recordable_env.reset()
 
         while not done:
-
             if run_config['multi_model']:
                 actions = {}
                 for policy in config['multiagent']['policies']:

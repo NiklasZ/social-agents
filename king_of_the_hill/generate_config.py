@@ -8,7 +8,7 @@ from ray.rllib.policy.policy import PolicySpec
 from ray.tune.registry import register_env
 from king_of_the_hill.custom_metrics import MetricsCallbacks
 from king_of_the_hill.models import get_model
-from king_of_the_hill.playable_maps import PLAYABLE_MAPS
+from king_of_the_hill.maps import PLAYABLE_MAPS
 from king_of_the_hill.preprocessor import FrameStacker
 from meltingpot.python import substrate
 from meltingpot.python.configs.substrates.king_of_the_hill import get_config

@@ -34,11 +34,7 @@ class MetricsCallbacks(DefaultCallbacks):
         # Number of times hill is captured by colour
         episode.user_data['red_captures'] = 0
         episode.user_data['blue_captures'] = 0
-        # # Set per-episode agent2-blocks counter (how many times has agent2 blocked agent1?).
-        # episode.user_data["num_collisions"] = 0
-        # # Set per-episode agent2-approaches
-        # episode.user_data["a"] = 0
-        pass
+
 
     def on_episode_step(self,
                         *,
@@ -86,4 +82,3 @@ class MetricsCallbacks(DefaultCallbacks):
         episode.custom_metrics["first_capture_step"] = episode.user_data['first_capture']
         episode.custom_metrics["red_captures"] = episode.user_data['red_captures']
         episode.custom_metrics["blue_captures"] = episode.user_data['blue_captures']
-        pass
