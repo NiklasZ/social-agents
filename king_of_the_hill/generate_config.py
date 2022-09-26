@@ -136,7 +136,7 @@ def get_alg_config(run_config: Dict) -> Dict:
     # Speeds up tf evaluation, but makes debugging difficult
     config['eager_tracing'] = not run_config['debug_mode']
     # Sets the number of environments to explore simultaneously. Not Sure if it is beneficial to change this.
-    config['num_envs_per_worker'] = 1
+    config['num_envs_per_worker'] = run_config['num_parallel_envs'] // run_config['num_workers']
 
     config = {k: v for k, v in config.items() if v is not None}  # filter out None values
     return config

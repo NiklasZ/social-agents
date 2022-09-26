@@ -1,6 +1,8 @@
-from typing import Dict
+from typing import Dict, Any, List, Tuple
 
+import numpy as np
 import ray
+from gym.wrappers.monitoring.video_recorder import ImageEncoder
 from ray.rllib.agents.ppo import ppo
 from king_of_the_hill.arg_parser import get_evaluation_args
 from king_of_the_hill.generate_config import get_trailing_number
@@ -9,6 +11,15 @@ from datetime import datetime
 from king_of_the_hill.wandb_api import get_api_key, download_evaluation_state
 from king_of_the_hill.models import get_model
 
+
+def log_verbose(value, verbose):
+    if verbose:
+        print(value)
+
+
+# Gets list of tuples containing policy id and player name
+def get_names(config: Dict) -> List[Tuple[str, str]]:
+    return [(p, f'player_{get_trailing_number(p)}') for p, _ in sorted(config['multiagent']['policies'].items())]
 
 def evaluate(run_config: Dict):
     ray.init(local_mode=True)  # Run with local_mode=True to use debugger
@@ -26,6 +37,7 @@ def evaluate(run_config: Dict):
     model_description = get_model(run_config['model_name'])
     env_constructor = model_description['env_constructor']
     test_env = env_constructor(config["env_config"])
+    test_env.metadata['video.frames_per_second'] = run_config['recording_fps']
     now = datetime.now()
     timestamp = now.strftime("%m-%d-%Y-%H-%M-%S")
     recordable_env = RecordVideo(test_env, f"videos/{run_config['rllib_run_name']}", video_length=1000,
@@ -36,25 +48,56 @@ def evaluate(run_config: Dict):
         done = False
         obs = recordable_env.reset()
 
+        # If using RNN/LSTM, we need to track more information
+        if config['model']['use_lstm']:
+            prev_actions = {}
+            states = {}
+            for _, player in get_names(config):
+                # Initial hidden and cell state
+                states[player] = [np.zeros(config['model']['lstm_cell_size'], ) for _ in range(2)]
+                prev_actions[player] = np.zeros(1, dtype='int32')
+
+        if run_config['record_observations']:
+            observation_recorders = {player: ImageEncoder(
+                output_path=f"videos/{run_config['rllib_run_name']}/{checkpoint_name}-{timestamp}-{episode}-{player}.mp4",
+                frame_shape=list(obs.values())[0].shape,
+                frames_per_sec=run_config['recording_fps'],
+                output_frames_per_sec=run_config['recording_fps']) for _, player in get_names(config)}
         while not done:
+            # If using multiple models
             if run_config['multi_model']:
                 actions = {}
-                for policy in config['multiagent']['policies']:
-                    id = get_trailing_number(policy)
-                    player = f'player_{id}'
-                    action = agent.compute_single_action(obs[player], policy_id=policy)
-                    if run_config['verbose']:
-                        print(player, policy, action)
+                # Sorted to ensure we always iterate policy ids in the same order
+                for policy, player in get_names(config):
+                    # If using RNN/LSTM we need to keep track of hidden states
+                    if config['model']['use_lstm']:
+                        action, state_out, _ = agent.compute_single_action(observation=obs[player],
+                                                                           state=states[player],
+                                                                           prev_action=prev_actions[player],
+                                                                           policy_id=policy)
+                        states[policy] = state_out
+                        prev_actions[policy] = action
+                    else:
+                        action = agent.compute_single_action(obs[player], policy_id=policy)
+                    log_verbose(f'{player}, {policy}, {action}', run_config['verbose'])
                     actions[player] = action
                 obs, reward, dones, _ = recordable_env.step(actions)
                 done = all(dones.values())
 
+            # If using one model
             else:
                 action = agent.compute_actions(obs, policy_id='av')
-                if run_config['verbose']:
-                    print(action)
+                log_verbose(action, run_config['verbose'])
                 obs, reward, dones, _ = recordable_env.step(action)
                 done = all(dones.values())
+
+            if run_config['record_observations']:
+                for player in obs:
+                    observation_recorders[player].capture_frame(obs[player])
+
+        if run_config['record_observations']:
+            for player in observation_recorders:
+                observation_recorders[player].close()
 
         recordable_env.close_video_recorder()
 

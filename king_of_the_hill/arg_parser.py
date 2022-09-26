@@ -37,6 +37,8 @@ def get_train_args():
                             help='how many worker processes to use. Use only 1 when debugging')
     parser_new.add_argument('--cpus-per-worker', type=int, required=False, default=None,
                             help='how cpus to allocate per worker process')
+    parser_new.add_argument('--num-parallel-envs', type=int, required=False,
+                            help='how many envs to sample in parallel. If not set, defaults to number of workers')
     parser_new.add_argument('--map-name', type=str, required=False, default='default',
                             help='name of the map to play KotH on. New maps can be added to the PLAYABLE_MAPS dict')
     parser_new.add_argument('--model-name', type=str, required=True,
@@ -61,6 +63,9 @@ def get_train_args():
         if not args.group_name:
             args.group_name = args.map_name
 
+        if not args.num_parallel_envs:
+            args.num_parallel_envs = args.num_workers
+
     return args
 
 
@@ -72,12 +77,16 @@ def get_evaluation_args():
                         help='the number of the checkpoint to evaluate')
     parser.add_argument('--episodes', type=int, required=False, default=1,
                         help='the number of episodes to evaluate')
+    parser.add_argument('--record-observations', action=argparse.BooleanOptionalAction, required=False,
+                        help="set in order to also get video recordings of agent's observations")
     parser.add_argument('--entity-name', type=str, required=False, default='ece-239-as',
                         help="name of the entity whose run should be resumed")
     parser.add_argument('--wandb-project-name', required=False, type=str, default='social_marl_koth',
                         help="the wandb's project name")
     parser.add_argument('--verbose',  action=argparse.BooleanOptionalAction, required=False,
-                        help='Set when you would like to log more information during the evaluation runs.')
+                        help='set when you would like to log more information during the evaluation runs.')
+    parser.add_argument('--recording-fps', type=int, required=False, default=20,
+                        help="when recording, sets the number of steps per second to encode into video.")
 
     args = parser.parse_args()
     return args

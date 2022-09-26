@@ -38,6 +38,16 @@ def get_fully_observable_cnn_env_constructor(world_height: int, world_width: int
     return constructor
 
 
+def get_cnn_lstm_constructor():
+    def constructor(env_config):
+        env = substrate.build(config_dict.ConfigDict(env_config))
+        env = MeltingPotEnv(env)
+        env = RGBObservationWrapper(env)
+        return env
+
+    return constructor
+
+
 MODELS = {
     'basic_cnn_4x': {
         'env_constructor': get_cnn_env_constructor(4),
@@ -72,13 +82,17 @@ MODELS = {
         'notes': '8x frame-stacked CNN that uses a fully observable 13x13 map. '
     },
     'basic_cnn_lstm': {
-        'env_constructor': get_fully_observable_cnn_env_constructor(13, 13, 8),
+        'env_constructor': get_cnn_lstm_constructor(),
         'model_config': {
-            'conv_filters': [[16, [8, 8], 8], [128, [13, 13], 1]],
+            'conv_filters': [[16, [8, 8], 8], [128, [11, 11], 1]],
             'conv_activation': 'relu',
             'post_fcnet_hiddens': [256],
-            'post_fcnet_activation': 'relu'
+            'post_fcnet_activation': 'relu',
+            'use_lstm': True,
+            'lstm_use_prev_action': True,
+            'lstm_use_prev_reward': False,
+            'lstm_cell_size': 256
         },
-        'notes': '8x frame-stacked CNN that uses a fully observable 13x13 map. '
+        'notes': 'CNN combined with an LSTM, requiring no framestacking'
     },
 }
