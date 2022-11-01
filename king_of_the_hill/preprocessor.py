@@ -11,8 +11,37 @@ from gym import spaces
 # Not really a wrapper as it inherits from MeltingPotEnv rather than gym.wrappers, but this is necessary
 # as a regular wrapper won't work without using the melting pot adapter.
 
-# TODO define a base wrapepr class
-class FullRGBObservationWrapper(multi_agent_env.MultiAgentEnv):
+
+class BaseWrapper(multi_agent_env.MultiAgentEnv):
+    def __init__(self):
+        if not self._env:
+            self._env = None
+        super().__init__()
+
+    def close(self):
+        """See base class."""
+        self._env.close()
+
+    def get_dmlab2d_env(self):
+        """Returns the underlying DM Lab2D environment."""
+        return self._env
+
+    def render(self, mode: str) -> np.ndarray:
+        return self._env.render(mode=mode)
+
+    @property
+    def metadata(self):
+        return self._env.metadata
+
+
+# class RecolouringWrapper(BaseWrapper):
+#     def __init__(self,
+#                  env: MeltingPotEnv):
+#         self._env = env
+#         super().__init__()
+
+
+class FullRGBObservationWrapper(BaseWrapper):
     def __init__(self,
                  env: MeltingPotEnv,
                  world_height: int,
@@ -54,22 +83,8 @@ class FullRGBObservationWrapper(multi_agent_env.MultiAgentEnv):
         ob, reward, done, info = self._env.step(*args, **kwargs)
         return self.get_world_rgb(ob), reward, done, info
 
-    def close(self):
-        """See base class."""
-        self._env.close()
 
-    def get_dmlab2d_env(self):
-        """Returns the underlying DM Lab2D environment."""
-        return self._env
-
-    def render(self, mode: str) -> np.ndarray:
-        return self._env.render(mode=mode)
-
-    @property
-    def metadata(self):
-        return self._env.metadata
-
-class RGBObservationWrapper(multi_agent_env.MultiAgentEnv):
+class RGBObservationWrapper(BaseWrapper):
     def __init__(self, env: MeltingPotEnv):
         self._env = env
         self._agent_ids = self._env.get_agent_ids()
@@ -87,21 +102,6 @@ class RGBObservationWrapper(multi_agent_env.MultiAgentEnv):
         ob, reward, done, info = self._env.step(*args, **kwargs)
         return get_rgb(ob), reward, done, info
 
-    def close(self):
-        """See base class."""
-        self._env.close()
-
-    def get_dmlab2d_env(self):
-        """Returns the underlying DM Lab2D environment."""
-        return self._env
-
-    def render(self, mode: str) -> np.ndarray:
-        return self._env.render(mode=mode)
-
-    @property
-    def metadata(self):
-        return self._env.metadata
-
 
 def get_rgb(obs_dict: Union[dict, spaces.Dict]):
     return {p: obs_dict[p]['RGB'] for p in obs_dict.keys()}
@@ -113,7 +113,7 @@ def get_rgb_space(obs_dict: spaces.Dict) -> spaces.Dict:
 
 # Stacks k frames in a multi-agent environment
 # Loosely inspired by ray/rllib/env/wrappers/atari_wrappers.py
-class FrameStacker(multi_agent_env.MultiAgentEnv):
+class FrameStacker(BaseWrapper):
     def __init__(self, env: MeltingPotEnv, stack_frames=4):
         self._env = env
         self.k = stack_frames
@@ -147,20 +147,5 @@ class FrameStacker(multi_agent_env.MultiAgentEnv):
             self.frames[p].append(obs[p])
         return self._stack_obs(), reward, done, info
 
-    def close(self):
-        """See base class."""
-        self._env.close()
-
-    def get_dmlab2d_env(self):
-        """Returns the underlying DM Lab2D environment."""
-        return self._env
-
-    def render(self, mode: str) -> np.ndarray:
-        return self._env.render(mode=mode)
-
     def _stack_obs(self):
         return {p: np.concatenate(self.frames[p], axis=2) for p in self.frames.keys()}
-
-    @property
-    def metadata(self):
-        return self._env.metadata

@@ -10,6 +10,7 @@ Collects extra metrics during episode. A lot of these rely on the reward structu
 """
 
 
+# TODO record actions taken (mean)
 # TODO add first hill tile painted
 class MetricsCallbacks(DefaultCallbacks):
     def on_episode_start(self,
@@ -28,13 +29,12 @@ class MetricsCallbacks(DefaultCallbacks):
 
         # Step of first capture of the hill
         # we pick 1000 as the episode length in the case that the hill is never captured
-        episode.user_data['first_capture'] = 1000
+        episode.user_data['first_capture'] = worker.env_context['lab2d_settings']['maxEpisodeLengthFrames'] # usually 1000
         episode.user_data['red_last_reward'] = 0
         episode.user_data['blue_last_reward'] = 0
         # Number of times hill is captured by colour
         episode.user_data['red_captures'] = 0
         episode.user_data['blue_captures'] = 0
-
 
     def on_episode_step(self,
                         *,

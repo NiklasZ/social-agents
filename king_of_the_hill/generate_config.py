@@ -1,16 +1,13 @@
 import copy
 from typing import Dict
 import ray
-from ml_collections import ConfigDict
-from ml_collections.config_dict import config_dict
 from ray.rllib.agents.ppo import PPOTrainer
 from ray.rllib.policy.policy import PolicySpec
 from ray.tune.registry import register_env
-from king_of_the_hill.custom_metrics import MetricsCallbacks
+from king_of_the_hill.callbacks.custom_metrics import MetricsCallbacks
+from king_of_the_hill.callbacks.enhanced_self_play import EnhancedSelfPlayCallback
 from king_of_the_hill.models import get_model
 from king_of_the_hill.maps import PLAYABLE_MAPS
-from king_of_the_hill.preprocessor import FrameStacker
-from meltingpot.python import substrate
 from meltingpot.python.configs.substrates.king_of_the_hill import get_config
 import re
 
@@ -25,15 +22,14 @@ def get_trailing_number(s: str) -> int:
         raise Exception(f"No number found at the end of '{s}'")
 
 
-# # A wrapper constructor
-# def wrapped_env_constructor(env_config: ConfigDict):
-#     """Outputs an environment for registering."""
-#     env = substrate.build(config_dict.ConfigDict(env_config))
-#     env = FrameStacker(env)
-#     return env
+def get_alg_config(run_config: Dict, training=True) -> Dict:
 
+    # Support for generating evaluation configs for older agents whose configs may not have these new fields.
+    if not training:
+        default_values = {'episodes_per_training_iteration': 4,
+                          'framework': 'tf2'}
+        run_config = run_config | default_values
 
-def get_alg_config(run_config: Dict) -> Dict:
     # The agent algorithm to use
     # PPO
     config = copy.deepcopy(
@@ -103,11 +99,19 @@ def get_alg_config(run_config: Dict) -> Dict:
     # each unroll happens exactly over one episode
     # ensuring that we have a full episode allows a reward to be calculated
     config['batch_mode'] = 'complete_episodes'
-    # Fragment length, in this case the number of episodes
+    # Fragment length, in this case the number of steps
     # collected at once from each worker and for each agent!
+    # Ignored when 'batch_mode' = 'complete_episodes'
     config['rollout_fragment_length'] = 1
+
+    episodes_per_batch = run_config['episodes_per_training_iteration'] // run_config['num_workers']
+    check_val = run_config['episodes_per_training_iteration'] / run_config['num_workers']
+    assert episodes_per_batch == check_val, f"Number of episodes per batch ({run_config['episodes_per_training_iteration']}) " \
+                                            f"needs to be divisible by number of workers ({run_config['num_workers']})"
+
+    # Controls total batch size of a training iteration.
     config['train_batch_size'] = config['env_config'].lab2d_settings[
-        'maxEpisodeLengthFrames']
+                                     'maxEpisodeLengthFrames'] * episodes_per_batch
     # fix the batch size for a training pass
     # Default: 128
     config['sgd_minibatch_size'] = run_config['sgd_minibatch_size']
@@ -120,21 +124,17 @@ def get_alg_config(run_config: Dict) -> Dict:
 
     # Set model config
     config['model'] = model_description['model_config']
+    # Choose whether to play against older policies during training to generalise more.
+    config['callbacks'] = EnhancedSelfPlayCallback if training and run_config[
+                                                          'generalising_self_play'] else MetricsCallbacks
 
-    config['callbacks'] = MetricsCallbacks
-    # config['model']['conv_filters'] = [[16, [8, 8], 8], [128, [11, 11], 1]]
-    # config['model']['conv_activation'] = 'relu'
-    # config['model']['post_fcnet_hiddens'] = [256]
-    # config['model']['post_fcnet_activation'] = 'relu'
-    # config['model']['use_lstm'] = True
-    # config['model']['lstm_use_prev_action'] = True
-    # config['model']['lstm_use_prev_reward'] = False
-    # config['model']['lstm_cell_size'] = 256
-
-    config['framework'] = 'tf2'  # set tensorflow framework
+    config['framework'] = run_config['framework']  # set tensorflow or torch framework
     config['num_cpus_per_worker'] = run_config['cpus_per_worker']
-    # Speeds up tf evaluation, but makes debugging difficult
-    config['eager_tracing'] = not run_config['debug_mode']
+
+    if run_config['framework'] == 'tf2':
+        # Speeds up tf evaluation, but makes debugging difficult
+        config['eager_tracing'] = not run_config['debug_mode']
+
     # Sets the number of environments to explore simultaneously. Not Sure if it is beneficial to change this.
     config['num_envs_per_worker'] = run_config['num_parallel_envs'] // run_config['num_workers']
 

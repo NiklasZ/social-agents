@@ -1,6 +1,7 @@
 import ray
 from ray.tune import tune
 from king_of_the_hill.arg_parser import get_train_args
+from king_of_the_hill.callbacks.enhanced_self_play import PolicyScorer
 from king_of_the_hill.generate_config import get_alg_config
 from king_of_the_hill.wandb_api import get_api_key, download_train_state
 from king_of_the_hill.wandb_logger_v2 import AnotherWandbLoggerCallback
@@ -13,10 +14,11 @@ def train(run_config: dict):
 
     # Local mode ensures the training is executed on a single process so a debugger can be attached
     ray.init(local_mode=run_config['debug_mode'])
-    agent_algorithm = "PPO"
+    agent_algorithm = 'PPO'
     rllib_path = '/tmp/ray_results'
     api_key = get_api_key()
 
+    # TODO figure out policy scorer on resume
     if run_config['command'] == 'resume':
         print(f"Resuming wandb run {run_config['run_id']}")
         config, run_config = download_train_state(rllib_path=rllib_path, api_key=api_key, run_config=run_config)
@@ -35,6 +37,11 @@ def train(run_config: dict):
                                                                  )])
     else:
         config = get_alg_config(run_config)
+
+        # Set up policy score tracking across workers
+        if run_config['generalising_self_play']:
+            scorer = PolicyScorer.options(name='policy_scorer').remote('av')
+
         results = tune.run(
             agent_algorithm,
             stop={'training_iteration': run_config['training_iterations']},
@@ -59,12 +66,7 @@ def train(run_config: dict):
             ]
         )
 
-    checkpoints = results.get_trial_checkpoints_paths(trial=results.get_best_trial('episode_reward_mean'),
-                                                      metric='episode_reward_mean')
-
-    if len(checkpoints) > 0:
-        checkpoint_path, checkpoint_reward = checkpoints[0]
-        print(f'Training complete. Best model found in {checkpoint_path} with reward {checkpoint_reward}')
+    print('Training complete')
 
 
 if __name__ == "__main__":

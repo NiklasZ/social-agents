@@ -30,7 +30,7 @@ def find_run_folder(all_runs_dir: str) -> str:
 def download_config(run_config: Dict, run) -> (Dict, Dict):
     combined_config = run.config
     run_config = combined_config['run_config'] | run_config  # merge configs
-    config = get_alg_config(run_config)
+    config = get_alg_config(run_config, training=False)
     print('Downloaded environment and run configs')
     return config, run_config
 

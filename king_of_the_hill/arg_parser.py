@@ -48,6 +48,14 @@ def get_train_args():
                             help='if set lets each agent have its own model instance for both'
                                  ' value function and policy. '
                                  'Otherwise, uses a shared model instance for every agent')
+    parser_new.add_argument('--generalising-self-play', action=argparse.BooleanOptionalAction, required=False,
+                            default=False,
+                            help='makes agent play against itself and past agents. Cannot be used alongside --multi-model')
+    parser_new.add_argument('--episodes-per-training-iteration', type=int, required=False, default=4,
+                            help='how many episodes to collect before training. Affects the training batch size')
+    parser_new.add_argument('--framework', type=str, required=False, default='torch',
+                            help="Deep learning framework to use. Must be either 'torch' or 'tf2'.")
+
     # Shared arguments
     for p in [parser_resume, parser_new]:
         p.add_argument('--wandb-project-name', required=False, type=str, default='social_marl_koth',
@@ -56,6 +64,12 @@ def get_train_args():
                        help='toggle in order to allow debugging of code by running it on a local process.')
 
     args = parser.parse_args()
+
+    if args.multi_model and args.generalising_self_play:
+        raise Exception('Cannot set both --multi-model and --generalising-self-play')
+
+    if args.framework not in ['torch', 'tf2']:
+        raise Exception("Deep learning framework must be either 'torch' or 'tf2'")
 
     if args.command == 'new':
         args.rllib_run_name = f'{args.run_name}-{int(time())}'  # Attach initial run timestamp for convenience later
@@ -83,7 +97,7 @@ def get_evaluation_args():
                         help="name of the entity whose run should be resumed")
     parser.add_argument('--wandb-project-name', required=False, type=str, default='social_marl_koth',
                         help="the wandb's project name")
-    parser.add_argument('--verbose',  action=argparse.BooleanOptionalAction, required=False,
+    parser.add_argument('--verbose', action=argparse.BooleanOptionalAction, required=False,
                         help='set when you would like to log more information during the evaluation runs.')
     parser.add_argument('--recording-fps', type=int, required=False, default=20,
                         help="when recording, sets the number of steps per second to encode into video.")
