@@ -1,7 +1,7 @@
 import ray
 from ray.rllib.agents import Trainer
 from ray.rllib.evaluation import Episode
-from king_of_the_hill.callbacks.custom_metrics import MetricsCallbacks
+from king_of_the_hill.custom_metrics import MetricsCallbacks
 from collections import OrderedDict
 import numpy as np
 import scipy as sp
@@ -14,6 +14,7 @@ class PolicyScorer:
         self.main_policy = main_policy_id
         self.policy_metrics = OrderedDict()  # score, games played, won, draw and lost
         self.learning_rate = 0.05
+
     def add_policy(self, policy_id: str):
         self.policy_metrics[policy_id] = {'score': 0, 'games': 0, 'won': 0, 'draw': 0, 'lost': 0}
 

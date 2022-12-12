@@ -101,6 +101,7 @@ def get_evaluation_args():
                         help='set when you would like to log more information during the evaluation runs.')
     parser.add_argument('--recording-fps', type=int, required=False, default=20,
                         help="when recording, sets the number of steps per second to encode into video.")
-
+    parser.add_argument('--debug-mode', action=argparse.BooleanOptionalAction, required=False, default=False,
+                   help='toggle in order to allow debugging of code by running it on a local process.')
     args = parser.parse_args()
     return args

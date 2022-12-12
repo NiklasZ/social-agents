@@ -100,7 +100,7 @@ class RGBObservationWrapper(BaseWrapper):
     def step(self, *args, **kwargs):
         # modify obs
         ob, reward, done, info = self._env.step(*args, **kwargs)
-        return get_rgb(ob), reward, done, info
+        return get_rgb(ob), reward, done, ob | info
 
 
 def get_rgb(obs_dict: Union[dict, spaces.Dict]):

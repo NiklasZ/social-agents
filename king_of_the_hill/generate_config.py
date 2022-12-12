@@ -4,7 +4,7 @@ import ray
 from ray.rllib.agents.ppo import PPOTrainer
 from ray.rllib.policy.policy import PolicySpec
 from ray.tune.registry import register_env
-from king_of_the_hill.callbacks.custom_metrics import MetricsCallbacks
+from king_of_the_hill.custom_metrics import MetricsCallbacks
 from king_of_the_hill.callbacks.enhanced_self_play import EnhancedSelfPlayCallback
 from king_of_the_hill.models import get_model
 from king_of_the_hill.maps import PLAYABLE_MAPS
