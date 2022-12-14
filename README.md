@@ -8,6 +8,7 @@ This a project to find correlations in social representations between artificial
 ./install.sh
 ```
 which installs everything and runs Melting Pot's test suite.
+
 3. Install the optional Rllib dependencies in [setup.py](setup.py). Via `pip`, this has the following command:
 ```
 pip install -e .['rllib']
