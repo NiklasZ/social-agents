@@ -786,21 +786,20 @@ def get_config(
     config.play_map = play_map
     config.fixed_teams = fixed_teams
 
-    config.lab2d_settings = build(config, [])
+    config.lab2d_settings = build([], config)
     config.lab2d_settings_builder = build
 
     return config
 
 
-def build(
-        config: config_dict.ConfigDict,
-        roles: Sequence[str]
-) -> Mapping[str, Any]:
+def build(roles: Sequence[str],
+          config: config_dict.ConfigDict,
+          ) -> Mapping[str, Any]:
     """Build substrate definition given player roles."""
     substrate_definition = dict(
         levelName="paintball__king_of_the_hill",
         levelDirectory="meltingpot/lua/levels",
-        numPlayers=config["num_players"],
+        numPlayers=config.num_players,
         maxEpisodeLengthFrames=1000,
         spriteSize=8,
         topology="BOUNDED",  # Choose from ["BOUNDED", "TORUS"],
