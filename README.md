@@ -15,7 +15,8 @@ pip install -e .['rllib']
 ```
 4. Install either `torch` or `tensorflow`. We currently use `torch~=1.11.0+cu113` (torch 1.11 with CUDA 11.3) 
 although newer versions should also work.
-5. Ensure you have access to the [wandb project](https://wandb.ai/ece-239-as/social_marl_koth) 
+5. Install `tqdm`,`wandb`
+6. Ensure you have access to the [wandb project](https://wandb.ai/ece-239-as/social_marl_koth) 
 and create a file `king_of_the_hill/wandb_api_key.txt` and paste your API access key into it.
 
 # Running
