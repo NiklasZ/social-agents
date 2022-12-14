@@ -1,199 +1,66 @@
-# Melting Pot
+# Social MARL
+This a project to find correlations in social representations between artificial agents.
 
-*A suite of test scenarios for multi-agent reinforcement learning.*
+# Installation
+1. Please install Python >=3.9.
+2. Follow the installation instructions from Melting Pot's [README.md](MELTING_POT_README.md). Note: it's usually easiest to run:
+```
+./install.sh
+```
+which installs everything and runs Melting Pot's test suite.
+3. Install the optional Rllib dependencies in [setup.py](setup.py). Via `pip`, this has the following command:
+```
+pip install -e .['rllib']
+```
+4. Install either `torch` or `tensorflow`. We currently use `torch~=1.11.0+cu113` (torch 1.11 with CUDA 11.3) 
+although newer versions should also work.
+5. Ensure you have access to the [wandb project](https://wandb.ai/ece-239-as/social_marl_koth) 
+and create a file `king_of_the_hill/wandb_api_key.txt` and paste your API access key into it.
 
-
-[![meltingpot-tests](../../actions/workflows/ci.yml/badge.svg)](../../actions/workflows/ci.yml)
-
-<div align="center">
-  <img src="docs/images/meltingpot_montage.gif"
-       alt="Melting Pot substrates"
-       height="250" width="250" />
-</div>
-
-[Melting Pot 2.0 Tech Report](https://arxiv.org/abs/2211.13746)
-
-## About
-
-Melting Pot assesses generalization to novel social situations involving both
-familiar and unfamiliar individuals, and has been designed to test a broad range
-of social interactions such as: cooperation, competition, deception,
-reciprocation, trust, stubbornness and so on. Melting Pot offers researchers a
-set of over 50 multi-agent reinforcement learning _substrates_ (multi-agent
-games) on which to train agents, and over 256 unique test _scenarios_ on which
-to evaluate these trained agents. The performance of agents on these held-out
-test scenarios quantifies whether agents:
-
-*   perform well across a range of social situations where individuals are
-    interdependent,
-*   interact effectively with unfamiliar individuals not seen during training
-
-The resulting score can then be used to rank different multi-agent RL algorithms
-by their ability to generalize to novel social situations.
-
-We hope Melting Pot will become a standard benchmark for multi-agent
-reinforcement learning. We plan to maintain it, and will be extending it in the
-coming years to cover more social interactions and generalization scenarios.
-
-If you are interested in extending Melting Pot, please refer to the
-[Extending Melting Pot](docs/extending.md) documentation.
-
-## Installation
-
-Melting Pot is built on top of
-[DeepMind Lab2D](https://github.com/deepmind/lab2d).
-
-### Devcontainer (x86 only)
-
-*NOTE: This Devcontainer only works for x86 platforms. For arm64 (newer M1 Macs) users will have to follow the manual installation steps.*
-
-This project includes a pre-configured development environment ([devcontainer](https://containers.dev)).
-
-You can launch a working development environment with one click, using e.g. [Github
-Codespaces](https://github.com/features/codespaces) or the [VSCode
-Containers](https://code.visualstudio.com/docs/remote/containers-tutorial)
-extension.
-
-#### CUDA support
-
-To enable CUDA support (required for GPU training), make sure you have the
-[nvidia-container-toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html)
-package installed, and then run Docker with the `---gpus all` flag enabled. Note
-that for GitHub Codespaces this isn't necessary, as it's done for you
-automatically.
-
-### Manual install
-
-The installation steps are
-as follows (see [`install.sh`](https://github.com/deepmind/meltingpot/blob/main/install.sh)
-for an example installation script):
-
-1.  (Optional) Activate a virtual environment, e.g.:
-
-    ```shell
-    python3 -m venv "${HOME}/meltingpot_venv"
-    source "${HOME}/meltingpot_venv/bin/activate"
-    ```
-
-2.  Install `dmlab2d` from the
-    [dmlab2d wheel files](https://github.com/deepmind/lab2d/releases/tag/release_candidate_2022-03-24), e.g.:
-
-    ```shell
-    pip3 install https://github.com/deepmind/lab2d/releases/download/release_candidate_2022-03-24/dmlab2d-1.0-cp39-cp39-manylinux_2_31_x86_64.whl
-    ```
-
-    If there is no appropriate wheel (e.g. M1 chipset) you will need to install
-    [`dmlab2d`](https://github.com/deepmind/lab2d) and build the wheel yourself
-    (see
-    [`install.sh`](https://github.com/deepmind/meltingpot/blob/main/install.sh)
-    for an example installation script that can be adapted to your setup).
-
-3.  Test the `dmlab2d` installation in `python3`:
-
-    ```python
-    import dmlab2d
-    import dmlab2d.runfiles_helper
-
-    lab = dmlab2d.Lab2d(dmlab2d.runfiles_helper.find(), {"levelName": "chase_eat"})
-    env = dmlab2d.Environment(lab, ["WORLD.RGB"])
-    env.step({})
-    ```
-
-4.  Install Melting Pot:
-
-    ```shell
-    git clone -b main https://github.com/deepmind/meltingpot
-    cd meltingpot
-    curl -L https://storage.googleapis.com/dm-meltingpot/meltingpot-assets-1.0.0.tar.gz \
-        | tar -xz --directory=meltingpot
-    pip3 install .
-    ```
-
-5.  Test the Melting Pot installation:
-
-    ```shell
-    pip3 install pytest
-    pytest meltingpot
-    ```
-
-## Example usage
-
-You can try out the substrates interactively with the
-[human_players](meltingpot/python/human_players) scripts. For example, to play the
-`clean_up` substrate, you can run:
-
-```shell
-python3 meltingpot/python/human_players/play_clean_up.py
+# Running
+To run the project you should ensure the Python working directory is added to the PYTHONPATH:
+```bash
+export PYTHONPATH='<path_to_repository>/social-agents'
 ```
 
-You can move around with the `W`, `A`, `S`, `D` keys, Turn with `Q`, and `E`,
-fire the zapper with `1`, and fire the cleaning beam with `2`. You can switch
-between players with `TAB`. There are other substrates available in the
-[human_players](meltingpot/python/human_players) directory. Some have multiple variants,
-which you select with the `--level_name` flag.
+## Training
+Training is controlled by [king_of_the_hill/train.py](king_of_the_hill/train.py) and has two modes:
+- `new`, which starts a new training run
+- `resume`, which continues an existing training run
 
-NOTE: If you get a `ModuleNotFoundError: No module named 'meltingpot.python'`
-      error, you can solve it by exporting the meltingpot home directory as
-      `PYTHONPATH` (e.g. by calling `export PYTHONPATH=$(pwd)`).
+The exact arguments possible for each mode can be obtained via `python king_of_the_hill/train.py new -h` and
+`python king_of_the_hill/train.py resume -h` respectively. Below are example commands
 
-### Training agents
-We provide two example scripts using RLlib and [PettingZoo](https://github.com/Farama-Foundation/PettingZoo) with [Stable-Baselines3](https://github.com/DLR-RM/stable-baselines3) (SB3) respectively. Note that Melting Pot is agnostic to how you train your agents, and as such, these scripts are not meant to be a suggestion on how to achieve good scores in the task suite.
 
-#### RLlib
-This example uses [RLLib](https://github.com/ray-project/ray) to train agents in self-play on a Melting Pot substrate.
-
-First you will need to install the dependencies needed by the RLlib example:
-
-```shell
-cd <meltingpot_root>
-pip3 install -e .[rllib]
+### New command example
+Here's an example training command:
+```bash
+python king_of_the_hill/train.py new --num-gpus 1 --map-name 13x13_minified_v2 --num-workers 8 --model-name basic_cnn_lstm --episodes-per-training-iteration 8 --checkpoint-frequency 50
 ```
 
-Then you can run the training experiment using:
+This should create a run on `wandb` and save the run configuration and checkpoints there. 
+Locally checkpoints are kept in `/tmp/ray_results` although that directory is emptied on every new machine start.
+Lastly, the run should also generate a unique run id shaped like this one: `8c82d_00000`.
 
-```shell
-cd <meltingpot_root>/examples/rllib
-python3 self_play_train.py
+### Resume command example
+Using the previously created run id the training can be resumed as follows:
+```bash
+python king_of_the_hill/train.py resume --run-id 8c82d_00000
 ```
 
-#### PettingZoo and Stable-Baselines3
-This example uses a PettingZoo wrapper with a fully parameter shared PPO agent from SB3.
+This works reasonably well, although rllib will often choose to go back a few training iterations for stability. This 
+can mess up `wandb` charts a bit as now multiple datapoints refer to the same training iteration, 
+but it is not a huge concern.
 
-The PettingZoo wrapper can be used separately from SB3 and
-can be found at [meltingpot_env.py](examples/pettingzoo/meltingpot_env.py)
 
-```shell
-cd <meltingpot_root>
-pip3 install -e .[pettingzoo]
+## Evaluation
+Once a run has at least one checkpoint, we can evaluate agents with `python king_of_the_hill/evaluate.py`, which can
+play the learned policies of the agents for multiple games, record them and also track their metrics. Here is an example
+evaluation command:
+```bash
+python king_of_the_hill/evaluate.py --run-id 8c82d_00000 --checkpoint-number 1 --episodes 3 --record-observations --recording-fps 5
 ```
 
-```shell
-cd <meltingpot_root>/examples/pettingzoo
-python3 sb3_train.py
-```
+Which pulls the checkpoint of the 1st training iteration and evaluates 3 episodes. Notably, videos and other collected metrics
+will be put into [king_of_the_hill/evaluation](king_of_the_hill/evaluation).
 
-### Documentation
-
-Full documentation is available [here](docs/index.md).
-
-## Citing Melting Pot
-
-If you use Melting Pot in your work, please cite the accompanying article:
-
-```bibtex
-@inproceedings{leibo2021meltingpot,
-    title={Scalable Evaluation of Multi-Agent Reinforcement Learning with
-           Melting Pot},
-    author={Joel Z. Leibo AND Edgar Du\'e\~nez-Guzm\'an AND Alexander Sasha
-            Vezhnevets AND John P. Agapiou AND Peter Sunehag AND Raphael Koster
-            AND Jayd Matyas AND Charles Beattie AND Igor Mordatch AND Thore
-            Graepel},
-    year={2021},
-    journal={International conference on machine learning},
-    organization={PMLR}
-}
-```
-
-## Disclaimer
-
-This is not an officially supported Google product.

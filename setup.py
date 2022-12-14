@@ -28,7 +28,7 @@ setuptools.setup(
     author='DeepMind',
     author_email='noreply@google.com',
     description='A suite of test scenarios for multi-agent reinforcement learning.',
-    long_description=open('README.md').read(),
+    long_description=open('MELTING_POT_README.md').read(),
     long_description_content_type='text/markdown',
     keywords='multi-agent reinforcement-learning python machine-learning',
     classifiers=[
