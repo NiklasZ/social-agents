@@ -1,4 +1,4 @@
-# Copyright 2020 DeepMind Technologies Limited.
+# Copyright 2022 DeepMind Technologies Limited.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,119 +13,73 @@
 # limitations under the License.
 """Substrate builder."""
 
-from typing import Any, Mapping, Sequence, Tuple
+from collections.abc import Sequence
 
-import chex
-import dm_env
 from ml_collections import config_dict
-import rx
-from rx import subject
 
 from meltingpot.python.configs import substrates as substrate_configs
-from meltingpot.python.utils.substrates import builder
-from meltingpot.python.utils.substrates.wrappers import base
-from meltingpot.python.utils.substrates.wrappers import discrete_action_wrapper
-from meltingpot.python.utils.substrates.wrappers import multiplayer_wrapper
+from meltingpot.python.utils.substrates import substrate
+from meltingpot.python.utils.substrates import substrate_factory
 
-AVAILABLE_SUBSTRATES = substrate_configs.SUBSTRATES
+SUBSTRATES = substrate_configs.SUBSTRATES
 
 
-@chex.dataclass(frozen=True)
-class SubstrateObservables:
-  """Observables for a substrate.
-
-  Attributes:
-    action: emits actions sent to the substrate from players.
-    timestep: emits timesteps sent from the substrate to players.
-    events: emits environment-specific events resulting from any interactions
-      with the Substrate. Each individual event is emitted as a single element:
-      (event_name, event_item).
-  """
-  action: rx.typing.Observable[Sequence[int]]
-  timestep: rx.typing.Observable[dm_env.TimeStep]
-  events: rx.typing.Observable[Tuple[str, Any]]
+def get_config(name: str) -> config_dict.ConfigDict:
+  """Returns the configs for the specified substrate."""
+  return substrate_configs.get_config(name).lock()
 
 
-class Substrate(base.Wrapper):
-  """Specific subclass of Wrapper with overridden spec types."""
-
-  def __init__(self, env: ...) -> None:
-    """See base class."""
-    super().__init__(env)
-    self._action_subject = subject.Subject()
-    self._timestep_subject = subject.Subject()
-    self._events_subject = subject.Subject()
-    self._observables = SubstrateObservables(
-        action=self._action_subject,
-        events=self._events_subject,
-        timestep=self._timestep_subject,
-    )
-
-  def reset(self) -> dm_env.TimeStep:
-    """See base class."""
-    timestep = super().reset()
-    self._timestep_subject.on_next(timestep)
-    for event in super().events():
-      self._events_subject.on_next(event)
-    return timestep
-
-  def step(self, action: Sequence[int]) -> dm_env.TimeStep:
-    """See base class."""
-    self._action_subject.on_next(action)
-    timestep = super().step(action)
-    self._timestep_subject.on_next(timestep)
-    for event in super().events():
-      self._events_subject.on_next(event)
-    return timestep
-
-  def reward_spec(self) -> Sequence[dm_env.specs.Array]:
-    """See base class."""
-    return self._env.reward_spec()
-
-  def observation_spec(self) -> Sequence[Mapping[str, dm_env.specs.Array]]:
-    """See base class."""
-    return self._env.observation_spec()
-
-  def action_spec(self) -> Sequence[dm_env.specs.DiscreteArray]:
-    """See base class."""
-    return self._env.action_spec()
-
-  def close(self) -> None:
-    """See base class."""
-    super().close()
-    self._action_subject.on_completed()
-    self._timestep_subject.on_completed()
-    self._events_subject.on_completed()
-
-  def observables(self) -> SubstrateObservables:
-    """Returns observables for the substrate."""
-    return self._observables
-
-
-def get_config(substrate_name: str) -> config_dict.ConfigDict:
-  """Returns the configs for the substrate.
+def build(name: str, *, roles: Sequence[str]) -> substrate.Substrate:
+  """Builds an instance of the specified substrate.
 
   Args:
-    substrate_name: name of the substrate. Must be in AVAILABLE_SUBSTRATES.
-  """
-  if substrate_name not in AVAILABLE_SUBSTRATES:
-    raise ValueError(f'Unknown substrate {substrate_name!r}.')
-  return substrate_configs.get_config(substrate_name).lock()
-
-
-def build(config: config_dict.ConfigDict) -> Substrate:
-  """Builds the substrate given the config.
-
-  Args:
-    config: config resulting from `get_config`.
+    name: name of the substrate.
+    roles: sequence of strings defining each player's role. The length of
+      this sequence determines the number of players.
 
   Returns:
     The training substrate.
   """
-  env = builder.builder(**config)
-  env = multiplayer_wrapper.Wrapper(
-      env,
-      individual_observation_names=config.individual_observation_names,
-      global_observation_names=config.global_observation_names)
-  env = discrete_action_wrapper.Wrapper(env, action_table=config.action_set)
-  return Substrate(env)
+  return get_factory(name).build(roles)
+
+
+def build_from_config(
+    config: config_dict.ConfigDict,
+    *,
+    roles: Sequence[str],
+) -> substrate.Substrate:
+  """Builds a substrate from the provided config.
+
+  Args:
+    config: config resulting from `get_config`.
+    roles: sequence of strings defining each player's role. The length of
+      this sequence determines the number of players.
+
+  Returns:
+    The training substrate.
+  """
+  return get_factory_from_config(config).build(roles)
+
+
+def get_factory(name: str) -> substrate_factory.SubstrateFactory:
+  """Returns the factory for the specified substrate."""
+  config = substrate_configs.get_config(name)
+  return get_factory_from_config(config)
+
+
+def get_factory_from_config(
+    config: config_dict.ConfigDict) -> substrate_factory.SubstrateFactory:
+  """Returns a factory from the provided config."""
+
+  def lab2d_settings_builder(roles):
+    return config.lab2d_settings_builder(roles=roles, config=config)
+
+  return substrate_factory.SubstrateFactory(
+      lab2d_settings_builder=lab2d_settings_builder,
+      individual_observations=config.individual_observation_names,
+      global_observations=config.global_observation_names,
+      action_table=config.action_set,
+      timestep_spec=config.timestep_spec,
+      action_spec=config.action_spec,
+      valid_roles=config.valid_roles,
+      default_player_roles=config.default_player_roles)

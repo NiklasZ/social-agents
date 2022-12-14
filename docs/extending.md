@@ -23,14 +23,14 @@ my_bot_0=_saved_model(
 ),
 ```
 
-If instead your bot is a puppet, then select a puppeteer function from those
-defined in [`puppeteer_functions`](https://github.com/deepmind/meltingpot/tree/main/meltingpot/python/utils/bots/puppeteer_functions.py).
+If instead your bot is a puppet, then select a `Puppeteer` from those
+defined in [`puppeteers`](https://github.com/deepmind/meltingpot/tree/main/meltingpot/python/utils/bots/puppeteers).
 Then structure its bot entry like this:
 
 ```python
 my_puppet_bot_0=_puppet(
     substrate='name_of_substrate_where_bot_operates',
-    puppeteer_fn=puppeteer_functions.name_of_puppeteer_function,
+    puppeteer_builder=functools.partial(Puppeteer, **kwargs)
 ),
 ```
 

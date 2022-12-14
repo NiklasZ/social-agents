@@ -65,12 +65,6 @@ def get_train_args():
 
     args = parser.parse_args()
 
-    if args.multi_model and args.generalising_self_play:
-        raise Exception('Cannot set both --multi-model and --generalising-self-play')
-
-    if args.framework not in ['torch', 'tf2']:
-        raise Exception("Deep learning framework must be either 'torch' or 'tf2'")
-
     if args.command == 'new':
         args.rllib_run_name = f'{args.run_name}-{int(time())}'  # Attach initial run timestamp for convenience later
 
@@ -79,6 +73,12 @@ def get_train_args():
 
         if not args.num_parallel_envs:
             args.num_parallel_envs = args.num_workers
+
+        if args.multi_model and args.generalising_self_play:
+            raise Exception('Cannot set both --multi-model and --generalising-self-play')
+
+        if args.framework not in ['torch', 'tf2']:
+            raise Exception("Deep learning framework must be either 'torch' or 'tf2'")
 
     return args
 
@@ -102,6 +102,6 @@ def get_evaluation_args():
     parser.add_argument('--recording-fps', type=int, required=False, default=20,
                         help="when recording, sets the number of steps per second to encode into video.")
     parser.add_argument('--debug-mode', action=argparse.BooleanOptionalAction, required=False, default=False,
-                   help='toggle in order to allow debugging of code by running it on a local process.')
+                        help='toggle in order to allow debugging of code by running it on a local process.')
     args = parser.parse_args()
     return args

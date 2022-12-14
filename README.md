@@ -6,9 +6,12 @@
 [![meltingpot-tests](../../actions/workflows/ci.yml/badge.svg)](../../actions/workflows/ci.yml)
 
 <div align="center">
-  <img src="docs/images/meltingpot_montage_360.gif"
-       alt="Melting Pot substrates" />
+  <img src="docs/images/meltingpot_montage.gif"
+       alt="Melting Pot substrates"
+       height="250" width="250" />
 </div>
+
+[Melting Pot 2.0 Tech Report](https://arxiv.org/abs/2211.13746)
 
 ## About
 
@@ -16,16 +19,14 @@ Melting Pot assesses generalization to novel social situations involving both
 familiar and unfamiliar individuals, and has been designed to test a broad range
 of social interactions such as: cooperation, competition, deception,
 reciprocation, trust, stubbornness and so on. Melting Pot offers researchers a
-set of 21 multi-agent reinforcement learning _substrates_ (multi-agent games) on
-which to train agents, and over 85 unique test _scenarios_ on which to evaluate
-these trained agents. The performance of agents on these held-out test scenarios
-quantifies whether agents:
+set of over 50 multi-agent reinforcement learning _substrates_ (multi-agent
+games) on which to train agents, and over 256 unique test _scenarios_ on which
+to evaluate these trained agents. The performance of agents on these held-out
+test scenarios quantifies whether agents:
 
 *   perform well across a range of social situations where individuals are
     interdependent,
 *   interact effectively with unfamiliar individuals not seen during training
-*   pass a universalization test: answering positively to the question: _what
-    if everyone behaved like that?_
 
 The resulting score can then be used to rank different multi-agent RL algorithms
 by their ability to generalize to novel social situations.
@@ -40,7 +41,7 @@ If you are interested in extending Melting Pot, please refer to the
 ## Installation
 
 Melting Pot is built on top of
-[DeepMind Lab2D](https://github.com/deepmind/lab2d). 
+[DeepMind Lab2D](https://github.com/deepmind/lab2d).
 
 ### Devcontainer (x86 only)
 

@@ -13,20 +13,17 @@
 # limitations under the License.
 """Base class for wrappers."""
 
-from meltingpot.python import substrate
-
-Substrate = substrate.Substrate
+from meltingpot.python.utils.substrates import substrate
 
 
-class Wrapper(substrate.Substrate):
+class SubstrateWrapper(substrate.Substrate):
   """Base class for Substrate wrappers."""
 
   def __init__(self, env: substrate.Substrate):
     """Initializer.
 
     Args:
-      env: An environment to wrap. This environment will be closed with this
-        wrapper.
+      env: A substrate to wrap. Will be closed with this wrapper.
     """
     self._env = env
 

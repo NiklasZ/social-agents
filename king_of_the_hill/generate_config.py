@@ -1,14 +1,14 @@
 import copy
 from typing import Dict
 import ray
-from ray.rllib.agents.ppo import PPOTrainer
+from ray.rllib.algorithms.ppo import PPO
 from ray.rllib.policy.policy import PolicySpec
 from ray.tune.registry import register_env
 from king_of_the_hill.custom_metrics import MetricsCallbacks
 from king_of_the_hill.callbacks.enhanced_self_play import EnhancedSelfPlayCallback
 from king_of_the_hill.models import get_model
 from king_of_the_hill.maps import PLAYABLE_MAPS
-from meltingpot.python.configs.substrates.king_of_the_hill import get_config
+from meltingpot.python.configs.substrates.paintball__king_of_the_hill import get_config
 import re
 
 
@@ -23,17 +23,16 @@ def get_trailing_number(s: str) -> int:
 
 
 def get_alg_config(run_config: Dict, training=True) -> Dict:
-
     # Support for generating evaluation configs for older agents whose configs may not have these new fields.
-    if not training:
-        default_values = {'episodes_per_training_iteration': 4,
-                          'framework': 'tf2'}
-        run_config = run_config | default_values
+    # if not training:
+    #     default_values = {'episodes_per_training_iteration': 4,
+    #                       'framework': 'tf2'}
+    #     run_config = run_config | default_values
 
     # The agent algorithm to use
     # PPO
     config = copy.deepcopy(
-        ray.rllib.agents.ppo.PPOConfig().to_dict()
+        ray.rllib.algorithms.ppo.PPOConfig().to_dict()
     )
 
     # Choose a map to play
@@ -94,8 +93,7 @@ def get_alg_config(run_config: Dict, training=True) -> Dict:
     config['log_level'] = 'DEBUG' if run_config['debug_mode'] else 'ERROR'
     config['num_workers'] = run_config['num_workers']
     # After n steps, force end episode
-    config['horizon'] = config['env_config'].lab2d_settings[
-        'maxEpisodeLengthFrames']
+    config['horizon'] = config['env_config'].lab2d_settings['maxEpisodeLengthFrames']
     # each unroll happens exactly over one episode
     # ensuring that we have a full episode allows a reward to be calculated
     config['batch_mode'] = 'complete_episodes'
@@ -126,7 +124,7 @@ def get_alg_config(run_config: Dict, training=True) -> Dict:
     config['model'] = model_description['model_config']
     # Choose whether to play against older policies during training to generalise more.
     config['callbacks'] = EnhancedSelfPlayCallback if training and run_config[
-                                                          'generalising_self_play'] else MetricsCallbacks
+        'generalising_self_play'] else MetricsCallbacks
 
     config['framework'] = run_config['framework']  # set tensorflow or torch framework
     config['num_cpus_per_worker'] = run_config['cpus_per_worker']

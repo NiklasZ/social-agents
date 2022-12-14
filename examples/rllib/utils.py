@@ -26,7 +26,7 @@ from ray.rllib.policy.sample_batch import DEFAULT_POLICY_ID
 
 from examples import utils
 from meltingpot.python import substrate
-from meltingpot.python.utils.bots import policy
+from meltingpot.python.utils.policies import policy
 
 PLAYER_STR_FORMAT = 'player_{index}'
 
@@ -34,23 +34,12 @@ PLAYER_STR_FORMAT = 'player_{index}'
 class MeltingPotEnv(multi_agent_env.MultiAgentEnv):
     """An adapter between the Melting Pot substrates and RLLib MultiAgentEnv."""
 
-    def _convert_spaces_tuple_to_dict(
-            self,
-            input_tuple: spaces.Tuple,
-            remove_world_observations: bool = False) -> spaces.Dict:
-        """Returns spaces tuple converted to a dictionary.
+    def __init__(self, env: dmlab2d.Environment):
+        """Initializes the instance.
 
     Args:
-      input_tuple: tuple to convert.
-      remove_world_observations: If True will remove non-player observations.
+      env: dmlab2d environment to wrap. Will be closed when this wrapper closes.
     """
-        return spaces.Dict({
-            agent_id: (utils.remove_world_observations_from_space(input_tuple[i])
-                       if remove_world_observations else input_tuple[i])
-            for i, agent_id in enumerate(self._ordered_agent_ids)
-        })
-
-    def __init__(self, env: dmlab2d.Environment):
         self._env = env
         self._num_players = len(self._env.observation_spec())
         self._ordered_agent_ids = [
@@ -116,13 +105,29 @@ class MeltingPotEnv(multi_agent_env.MultiAgentEnv):
         into a video.
     """
         observation = self._env.observation()
-        world_rgb = observation['WORLD.RGB']
+        world_rgb = observation[0]['WORLD.RGB']
 
         # RGB mode is used for recording videos
         if mode == 'rgb_array':
             return world_rgb
         else:
             return super().render(mode=mode)
+
+    def _convert_spaces_tuple_to_dict(
+            self,
+            input_tuple: spaces.Tuple,
+            remove_world_observations: bool = False) -> spaces.Dict:
+        """Returns spaces tuple converted to a dictionary.
+
+    Args:
+      input_tuple: tuple to convert.
+      remove_world_observations: If True will remove non-player observations.
+    """
+        return spaces.Dict({
+            agent_id: (utils.remove_world_observations_from_space(input_tuple[i])
+                       if remove_world_observations else input_tuple[i])
+            for i, agent_id in enumerate(self._ordered_agent_ids)
+        })
 
 
 def env_creator(env_config):

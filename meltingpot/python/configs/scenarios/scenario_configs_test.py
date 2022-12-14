@@ -1,4 +1,4 @@
-# Copyright 2020 DeepMind Technologies Limited.
+# Copyright 2022 DeepMind Technologies Limited.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -18,18 +18,21 @@ import collections
 from absl.testing import absltest
 from absl.testing import parameterized
 
+from meltingpot.python import bot as bot_factory
 from meltingpot.python.configs import bots
 from meltingpot.python.configs import scenarios
 from meltingpot.python.configs import substrates
 
 SCENARIO_CONFIGS = scenarios.SCENARIO_CONFIGS
-AVAILABLE_BOTS = frozenset(bots.BOT_CONFIGS)
+AVAILABLE_BOTS = bot_factory.BOTS
 AVAILABLE_SUBSTRATES = frozenset(substrates.SUBSTRATES)
 
 
-def _is_compatible(bot_name, substrate):
+def _is_compatible(bot_name, substrate, role):
+  if bot_name == bot_factory.NOOP_BOT_NAME:
+    return True
   bot_config = bots.BOT_CONFIGS[bot_name]
-  return substrate == bot_config.substrate
+  return substrate == bot_config.substrate and role in bot_config.roles
 
 
 class ScenarioConfigTest(parameterized.TestCase):
@@ -56,23 +59,50 @@ class ScenarioConfigTest(parameterized.TestCase):
     self.assertTrue(any(scenario.is_focal))
 
   @parameterized.named_parameters(SCENARIO_CONFIGS.items())
-  def test_has_valid_sizes(self, scenario):
-    substrate = substrates.get_config(scenario.substrate)
-    self.assertLen(scenario.is_focal, substrate.num_players)
+  def test_has_matching_sizes(self, scenario):
+    self.assertLen(scenario.is_focal, len(scenario.roles))
+
+  @parameterized.named_parameters(SCENARIO_CONFIGS.items())
+  def test_has_valid_roles(self, scenario):
+    valid_roles = substrates.get_config(scenario.substrate).valid_roles
+    self.assertContainsSubset(scenario.roles, valid_roles)
 
   @parameterized.named_parameters(SCENARIO_CONFIGS.items())
   def test_has_valid_bots(self, scenario):
-    self.assertContainsSubset(scenario.bots, AVAILABLE_BOTS)
+    scenario_bots = set().union(*scenario.bots_by_role.values())
+    self.assertContainsSubset(scenario_bots, AVAILABLE_BOTS)
 
   @parameterized.named_parameters(SCENARIO_CONFIGS.items())
   def test_bots_compatible(self, scenario):
-    incompatible = {
-        bot_name for bot_name in scenario.bots
-        if not _is_compatible(bot_name, scenario.substrate)
-    }
-    self.assertEmpty(
-        incompatible,
-        f'Substrate {scenario.substrate!r} not supported by: {incompatible!r}.')
+    for role, bot_names in scenario.bots_by_role.items():
+      incompatible = {
+          bot_name for bot_name in bot_names
+          if not _is_compatible(bot_name, scenario.substrate, role)
+      }
+      with self.subTest(role):
+        self.assertEmpty(
+            incompatible,
+            f'Substrate {scenario.substrate!r}, role {role!r} not supported '
+            f'by: {incompatible!r}.')
+
+  @parameterized.named_parameters(SCENARIO_CONFIGS.items())
+  def test_no_missing_role_assigments(self, scenario):
+    background_roles = set(role for n, role in enumerate(scenario.roles)
+                           if not scenario.is_focal[n])
+    supported_roles = {
+        role for role, bots in scenario.bots_by_role.items() if bots}
+    unsupported_roles = background_roles - supported_roles
+    self.assertEmpty(unsupported_roles,
+                     f'Background roles {unsupported_roles!r} have not been '
+                     f'assigned bots.')
+
+  @parameterized.named_parameters(SCENARIO_CONFIGS.items())
+  def test_no_unused_role_assignments(self, scenario):
+    background_roles = set(role for n, role in enumerate(scenario.roles)
+                           if not scenario.is_focal[n])
+    redundant_roles = set(scenario.bots_by_role) - background_roles
+    self.assertEmpty(redundant_roles,
+                     f'Bots assigned to {redundant_roles!r} are unused.')
 
   def test_no_duplicates(self):
     seen = collections.defaultdict(set)
@@ -87,10 +117,12 @@ class ScenarioConfigTest(parameterized.TestCase):
     self.assertEmpty(unused, f'Substrates not used by any scenario: {unused!r}')
 
   def test_all_bots_used_by_scenarios(self):
-    used = set().union(
-        *(scenario.bots for scenario in SCENARIO_CONFIGS.values()))
+    used = set()
+    for scenario in SCENARIO_CONFIGS.values():
+      used.update(*scenario.bots_by_role.values())
     unused = AVAILABLE_BOTS - used
     self.assertEmpty(unused, f'Bots not used by any scenario: {unused!r}')
+
 
 if __name__ == '__main__':
   absltest.main()

@@ -21,7 +21,7 @@ set -euxo pipefail
 function check_version_gt() {
   local required="$1"
   local input lowest
-  input="$(grep -Eo '[0-9]+\.[0-9]+\.[0-9]+' /dev/stdin | head -n 1)"
+  input="$(grep -Eo '[0-9]+\.[0-9]+' /dev/stdin | head -n 1)"
   lowest="$(printf "${required}\n${input}" | sort -V | head -n 1)"
   [[ "${lowest}" == "${required}" ]]
 }
@@ -34,11 +34,14 @@ function check_setup() {
   echo -e "\nChecking python version..."
   python --version | check_version_gt '3.9'
 
+  echo -e "\nChecking pip version..."
+  pip --version | check_version_gt '20.3'
+
   echo -e "\nChecking gcc version ..."
   gcc --version | check_version_gt '8'
 
   echo -e "\nChecking bazel version..."
-  bazel --version | check_version_gt '5.2.0'
+  bazel --version | check_version_gt '5.2'
 }
 
 
@@ -54,8 +57,7 @@ function install_dmlab2d() {
     local -r LUA_VERSION=luajit
   elif [[ "$(uname -s)" == 'Darwin' ]]; then
     # luajit not available on macOS
-    # lua5_2 leads to continuous integration test failures.
-    local -r LUA_VERSION=lua5_1
+    local -r LUA_VERSION=lua5_2
   else
     exit 1
   fi
@@ -84,7 +86,7 @@ function test_dmlab2d() {
 
 function install_meltingpot() {
   echo -e "\nDownloading assets..."
-  curl -L https://storage.googleapis.com/dm-meltingpot/meltingpot-assets-1.0.0.tar.gz \
+  curl -L https://storage.googleapis.com/dm-meltingpot/meltingpot-assets-2.1.0.tar.gz \
       | tar -xz --directory=meltingpot
 
   echo -e "\nInstalling meltingpot..."
@@ -96,7 +98,7 @@ function install_meltingpot() {
 function test_meltingpot() {
   echo -e "\nTesting meltingpot..."
   pip install pytest-xdist
-  pytest -n auto -ra --durations=10 meltingpot
+  pytest -n auto -rax --durations=10 meltingpot
 }
 
 

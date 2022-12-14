@@ -13,7 +13,8 @@
 # limitations under the License.
 """Wrapper that converts the DMLab2D specs into lists of action/observation."""
 
-from typing import Iterator, Mapping, Sequence, TypeVar
+from collections.abc import Collection, Iterator, Mapping, Sequence
+from typing import TypeVar
 
 import dm_env
 import numpy as np
@@ -43,7 +44,7 @@ def _player_observations(observations: Mapping[str, T], suffix: str,
       yield player_index, value
 
 
-class Wrapper(base.Wrapper):
+class Wrapper(base.Lab2dWrapper):
   """Wrapper that converts the environment to multiplayer lists.
 
   Ensures:
@@ -54,21 +55,22 @@ class Wrapper(base.Wrapper):
   """
 
   def __init__(self, env,
-               individual_observation_names: Sequence[str],
-               global_observation_names: Sequence[str]):
+               individual_observation_names: Collection[str],
+               global_observation_names: Collection[str]):
     """Constructor.
 
     Args:
       env: environment to wrap. When this wrapper closes env will also be
         closed.
-      individual_observation_names: (list) of per-player observations.
-      global_observation_names: (list) of observations that are available to all
+      individual_observation_names: the per-player observations to make
+        available to the players.
+      global_observation_names: the observations that are available to all
         players and analytics.
     """
     super().__init__(env)
     self._num_players = self._get_num_players()
-    self._individual_observation_suffixes = individual_observation_names
-    self._global_observation_names = global_observation_names
+    self._individual_observation_suffixes = set(individual_observation_names)
+    self._global_observation_names = set(global_observation_names)
 
   def _get_num_players(self) -> int:
     """Returns maximum player index in dmlab2d action spec."""
@@ -139,6 +141,11 @@ class Wrapper(base.Wrapper):
     action = self._get_action(actions)
     timestep = super().step(action)
     return self._get_timestep(timestep)
+
+  def observation(self) -> Sequence[Mapping[str, np.ndarray]]:
+    """See base class."""
+    observation = super().observation()
+    return self._get_observations(observation)
 
   def action_spec(self) -> Sequence[Mapping[str, dm_env.specs.Array]]:
     """See base class."""

@@ -13,7 +13,6 @@
 # limitations under the License.
 """Tests of scenarios."""
 
-import random
 from unittest import mock
 
 from absl.testing import absltest
@@ -21,10 +20,10 @@ from absl.testing import parameterized
 import dm_env
 import immutabledict
 
-from meltingpot.python import substrate as substrate_factory
-from meltingpot.python.utils.bots import policy
+from meltingpot.python.utils.policies import policy
 from meltingpot.python.utils.scenarios import population
 from meltingpot.python.utils.scenarios import scenario as scenario_utils
+from meltingpot.python.utils.substrates import substrate as substrate_lib
 
 
 def _track(source, fields):
@@ -59,7 +58,7 @@ class PartitionMergeTest(parameterized.TestCase):
 class ScenarioWrapperTest(absltest.TestCase):
 
   def test_scenario(self):
-    substrate = mock.Mock(spec_set=substrate_factory.Substrate)
+    substrate = mock.Mock(spec_set=substrate_lib.Substrate)
     substrate.reset.return_value = dm_env.TimeStep(
         step_type=dm_env.StepType.FIRST,
         discount=0,
@@ -93,6 +92,12 @@ class ScenarioWrapperTest(absltest.TestCase):
     substrate.reward_spec.return_value = tuple(
         f'reward_spec_{n}' for n in range(4)
     )
+    substrate.observation.return_value = (
+        immutabledict.immutabledict(ok=10, not_ok=100),
+        immutabledict.immutabledict(ok=20, not_ok=200),
+        immutabledict.immutabledict(ok=30, not_ok=300),
+        immutabledict.immutabledict(ok=40, not_ok=400),
+    )
 
     bots = {}
     for n in range(2):
@@ -101,10 +106,13 @@ class ScenarioWrapperTest(absltest.TestCase):
       bot.step.return_value = (n + 10, f'bot_state_{n}')
       bots[f'bot_{n}'] = bot
     background_population = population.Population(
-        policies=bots, population_size=2)
+        policies=bots,
+        names_by_role={'role_0': {'bot_0'}, 'role_1': {'bot_1'}},
+        roles=['role_0', 'role_1'],
+    )
 
     with scenario_utils.Scenario(
-        substrate=substrate_factory.Substrate(substrate),
+        substrate=substrate_lib.Substrate(substrate),
         background_population=background_population,
         is_focal=[True, False, True, False],
         permitted_observations={'ok'}) as scenario:
@@ -118,9 +126,8 @@ class ScenarioWrapperTest(absltest.TestCase):
       action_spec = scenario.action_spec()
       observation_spec = scenario.observation_spec()
       reward_spec = scenario.reward_spec()
-      with mock.patch.object(
-          random, 'choices', return_value=['bot_0', 'bot_1']):
-        initial_timestep = scenario.reset()
+      observation = scenario.observation()
+      initial_timestep = scenario.reset()
       step_timestep = scenario.step([0, 1])
 
     with self.subTest(name='action_spec'):
@@ -131,6 +138,13 @@ class ScenarioWrapperTest(absltest.TestCase):
                         immutabledict.immutabledict(ok='ok_spec_2')))
     with self.subTest(name='reward_spec'):
       self.assertEqual(reward_spec, ('reward_spec_0', 'reward_spec_2'))
+
+    with self.subTest(name='observation'):
+      expected = (
+          immutabledict.immutabledict(ok=10),
+          immutabledict.immutabledict(ok=30),
+      )
+      self.assertEqual(observation, expected)
 
     with self.subTest(name='events'):
       self.assertEmpty(scenario.events())

@@ -16,45 +16,34 @@
 from absl.testing import absltest
 from absl.testing import parameterized
 
-from meltingpot.python import scenario as scenario_factory
+from meltingpot.python import scenario
 from meltingpot.python.testing import substrates as test_utils
 
 
-@parameterized.named_parameters(
-    (name, name) for name in scenario_factory.AVAILABLE_SCENARIOS)
+@parameterized.named_parameters((name, name) for name in scenario.SCENARIOS)
 class ScenarioTest(test_utils.SubstrateTestCase):
 
-  def test_matches_spec(self, name):
-    config = scenario_factory.get_config(name)
-    with scenario_factory.build(config) as env:
-      with self.subTest('discount'):
-        self.assert_discount_matches_spec(env)
-      with self.subTest('reward'):
-        self.assert_reward_matches_spec(env)
-      with self.subTest('observation'):
-        self.assert_observation_matches_spec(env)
-
-  def test_spec_in_config_matches_environment(self, name):
-    config = scenario_factory.get_config(name)
-    action_spec = [config.action_spec] * config.num_players
-    reward_spec = [config.timestep_spec.reward] * config.num_players
-    observation_spec = [
-        dict(config.timestep_spec.observation)] * config.num_players
-    with scenario_factory.build(config) as env:
+  def test_scenario(self, name):
+    factory = scenario.get_factory(name)
+    num_players = factory.num_focal_players()
+    action_spec = [factory.action_spec()] * num_players
+    reward_spec = [factory.timestep_spec().reward] * num_players
+    discount_spec = factory.timestep_spec().discount
+    observation_spec = [factory.timestep_spec().observation] * num_players
+    with factory.build() as env:
+      with self.subTest('step'):
+        self.assert_step_matches_specs(env)
       with self.subTest('discount_spec'):
         self.assertSequenceEqual(env.action_spec(), action_spec)
       with self.subTest('reward_spec'):
         self.assertSequenceEqual(env.reward_spec(), reward_spec)
       with self.subTest('discount_spec'):
-        self.assertEqual(env.discount_spec(), config.timestep_spec.discount)
+        self.assertEqual(env.discount_spec(), discount_spec)
       with self.subTest('observation_spec'):
         self.assertSequenceEqual(env.observation_spec(), observation_spec)
-
-  def test_permitted_observations(self, name):
-    scenario_config = scenario_factory.get_config(name)
-    self.assertContainsSubset(
-        scenario_config.timestep_spec.observation,
-        scenario_factory.PERMITTED_OBSERVATIONS)
+      with self.subTest('only_permitted'):
+        self.assertContainsSubset(factory.timestep_spec().observation,
+                                  scenario.PERMITTED_OBSERVATIONS)
 
 
 if __name__ == '__main__':

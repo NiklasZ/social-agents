@@ -11,18 +11,21 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Scenario factory."""
+"""Scenario class."""
 
-from typing import Any, Collection, Iterable, Mapping, Sequence, Tuple, TypeVar
+from collections.abc import Collection, Iterable, Mapping, Sequence
+from typing import Any, TypeVar
 
 import chex
 import dm_env
 import immutabledict
+import numpy as np
 from rx import subject
 
-from meltingpot.python import substrate as substrate_factory
+from meltingpot.python.utils.policies import policy
 from meltingpot.python.utils.scenarios import population
 from meltingpot.python.utils.scenarios.wrappers import base
+from meltingpot.python.utils.substrates import substrate as substrate_lib
 
 T = TypeVar('T')
 
@@ -52,7 +55,7 @@ def _restrict_observations(
 def _partition(
     values: Sequence[T],
     is_focal: Sequence[bool],
-) -> Tuple[Sequence[T], Sequence[T]]:
+) -> tuple[Sequence[T], Sequence[T]]:
   """Partitions a sequence into focal and background sequences."""
   focal_values = []
   background_values = []
@@ -78,27 +81,27 @@ def _merge(
 
 
 @chex.dataclass(frozen=True)  # works with tree.
-class ScenarioObservables(substrate_factory.SubstrateObservables):
+class ScenarioObservables(substrate_lib.SubstrateObservables):
   """Observables for a Scenario.
 
   Attributes:
     action: emits actions sent to the scenario from (focal) players.
     timestep: emits timesteps sent from the scenario to (focal) players.
-    events: emits environment-specific events resulting from any interactions
-      with the scenario.
+    events: will never emit any events since things like player index are hard
+      to interpret for a Scenario. Use substrate.events instead.
     background: observables from the perspective of the background players.
     substrate: observables for the underlying substrate.
   """
   background: population.PopulationObservables
-  substrate: substrate_factory.SubstrateObservables
+  substrate: substrate_lib.SubstrateObservables
 
 
-class Scenario(base.Wrapper):
+class Scenario(base.SubstrateWrapper):
   """An substrate where a number of player slots are filled by bots."""
 
   def __init__(
       self,
-      substrate,
+      substrate: substrate_lib.Substrate,
       background_population: population.Population,
       is_focal: Sequence[bool],
       permitted_observations: Collection[str]) -> None:
@@ -151,7 +154,7 @@ class Scenario(base.Wrapper):
 
   def _split_timestep(
       self, timestep: dm_env.TimeStep
-  ) -> Tuple[dm_env.TimeStep, dm_env.TimeStep]:
+  ) -> tuple[dm_env.TimeStep, dm_env.TimeStep]:
     """Splits multiplayer timestep as needed by agents and bots."""
     focal_rewards, background_rewards = _partition(timestep.reward,
                                                    self._is_focal)
@@ -174,8 +177,8 @@ class Scenario(base.Wrapper):
 
   def reset(self) -> dm_env.TimeStep:
     """See base class."""
-    self._background_population.reset()
     timestep = super().reset()
+    self._background_population.reset()
     focal_timestep = self._send_full_timestep(timestep)
     for event in self.events():
       self._events_subject.on_next(event)
@@ -185,12 +188,21 @@ class Scenario(base.Wrapper):
     """See base class."""
     action = self._await_full_action(focal_action=action)
     timestep = super().step(action)
+    if timestep.step_type.first():
+      self._background_population.reset()
     focal_timestep = self._send_full_timestep(timestep)
     for event in self.events():
       self._events_subject.on_next(event)
     return focal_timestep
 
-  def events(self) -> Sequence[Tuple[str, Any]]:
+  def observation(self) -> Sequence[Mapping[str, np.ndarray]]:
+    observations = super().observation()
+    focal_observations, _ = _partition(observations, self._is_focal)
+    focal_observations = _restrict_observations(focal_observations,
+                                                self._permitted_observations)
+    return focal_observations
+
+  def events(self) -> Sequence[tuple[str, Any]]:
     """See base class."""
     # Do not emit substrate events as these may not make sense in the context
     # of a scenario (e.g. player indices may have changed).
@@ -198,23 +210,63 @@ class Scenario(base.Wrapper):
 
   def action_spec(self) -> Sequence[dm_env.specs.DiscreteArray]:
     """See base class."""
-    focal_action_spec, _ = _partition(super().action_spec(), self._is_focal)
+    action_spec = super().action_spec()
+    focal_action_spec, _ = _partition(action_spec, self._is_focal)
     return focal_action_spec
 
   def observation_spec(self) -> Sequence[Mapping[str, dm_env.specs.Array]]:
     """See base class."""
-    focal_observation_spec, _ = _partition(super().observation_spec(),
-                                           self._is_focal)
+    observation_spec = super().observation_spec()
+    focal_observation_spec, _ = _partition(observation_spec, self._is_focal)
     return _restrict_observations(focal_observation_spec,
                                   self._permitted_observations)
 
   def reward_spec(self) -> Sequence[dm_env.specs.Array]:
     """See base class."""
-    # TODO(b/192925212): better typing to avoid pytype disables.
-    reward_spec: Sequence[dm_env.specs.Array] = super().reward_spec()  # pytype: disable=annotation-type-mismatch
+    reward_spec = super().reward_spec()
     focal_reward_spec, _ = _partition(reward_spec, self._is_focal)
     return focal_reward_spec
 
   def observables(self) -> ScenarioObservables:
     """Returns the observables for the scenario."""
     return self._observables
+
+
+def build_scenario(
+    *,
+    substrate: substrate_lib.Substrate,
+    bots: Mapping[str, policy.Policy],
+    bots_by_role: Mapping[str, Collection[str]],
+    roles: Sequence[str],
+    is_focal: Sequence[bool],
+    permitted_observations: Collection[str],
+) -> Scenario:
+  """Builds the specified scenario.
+
+  Args:
+    substrate: the substrate underlying the scenario. Will be closed with the
+      scenario.
+    bots: the policies underlying the background population. Will be closed when
+      the Population is closed.
+    bots_by_role: dict mapping role to bot names that can fill it.
+    roles: specifies which role should fill the corresponding player slot.
+    is_focal: which player slots are allocated to focal players.
+    permitted_observations: the substrate observation keys permitted to be
+      exposed by the scenario to focal agents. If None will permit any
+      observation.
+
+  Returns:
+    The constructed scenario.
+  """
+  if len(roles) != len(is_focal):
+    raise ValueError('roles and is_focal must be the same length.')
+  background_roles = [role for n, role in enumerate(roles) if not is_focal[n]]
+  background_population = population.Population(
+      policies=bots,
+      names_by_role=bots_by_role,
+      roles=background_roles)
+  return Scenario(
+      substrate=substrate,
+      background_population=background_population,
+      is_focal=is_focal,
+      permitted_observations=permitted_observations)

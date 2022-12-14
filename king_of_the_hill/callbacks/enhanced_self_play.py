@@ -1,5 +1,6 @@
 import ray
-from ray.rllib.agents import Trainer
+# from ray.rllib.agents import Trainer
+from ray.rllib.algorithms import Algorithm
 from ray.rllib.evaluation import Episode
 from king_of_the_hill.custom_metrics import MetricsCallbacks
 from collections import OrderedDict
@@ -124,36 +125,36 @@ class EnhancedSelfPlayCallback(MetricsCallbacks):
 
         return policy_fn_mapper_wrapper
 
-    def on_train_result(self, *, result: dict, trainer: Trainer, **kwargs):
+    def on_train_result(self, *, result: dict, algorithm: Algorithm, **kwargs):
         policy_mapping_fn = self._generate_policy_mapping_fn()
 
         # Add a new policy to train against later
         if result['training_iteration'] % self.save_policy_every == 0:
             # Need to prefix it with trial id because of some weird caching stuff RLlib does when restoring an agent.
-            new_pol_id = f"{trainer.trial_id}_t_{result['training_iteration']}"
+            new_pol_id = f"{algorithm.trial_id}_t_{result['training_iteration']}"
             self.policy_scorer.add_policy.remote(new_pol_id)
             policy_mapping_fn = self._generate_policy_mapping_fn()
 
-            temp_env = trainer.env_creator(trainer.config['env_config'])
-            new_policy = trainer.add_policy(
+            temp_env = algorithm.env_creator(algorithm.config['env_config'])
+            new_policy = algorithm.add_policy(
                 policy_id=new_pol_id,
-                policy_cls=type(trainer.get_policy(self.main_policy)),
+                policy_cls=type(algorithm.get_policy(self.main_policy)),
                 policy_mapping_fn=policy_mapping_fn,
                 observation_space=temp_env.observation_space[f'player_0'],
                 action_space=temp_env.action_space[f'player_0'],
             )
-            main_state = trainer.get_policy(self.main_policy).get_state()
+            main_state = algorithm.get_policy(self.main_policy).get_state()
             new_policy.set_state(main_state)
             # We need to sync the just copied local weights to all the
             # remote workers as well.
-            trainer.workers.sync_weights(policies=[new_pol_id])
+            algorithm.workers.sync_weights(policies=[new_pol_id])
             print(f'Created new policy copy {new_pol_id}')
 
         def _set(worker):
             worker.set_policy_mapping_fn(policy_mapping_fn)
             worker.set_is_policy_to_train([self.main_policy])
 
-        trainer.workers.foreach_worker(_set)
+        algorithm.workers.foreach_worker(_set)
 
         # Add policy stats
         policy_metrics = ray.get(self.policy_scorer.get_policy_metrics.remote())

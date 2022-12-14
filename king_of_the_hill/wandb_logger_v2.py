@@ -8,30 +8,24 @@ but will not reach the release version yet. The changes are fairly simple so I c
 import enum
 import os
 import pickle
-from collections import deque
 from collections.abc import Sequence
 from multiprocessing import Process, Queue
 from numbers import Number
 from typing import Any, Callable, Dict, List, Optional, Tuple
 from zipfile import ZipFile
-
 import numpy as np
 import urllib
-
 from ray import logger
+from ray.tune.stopper import Stopper
 from ray.tune import Trainable
-from ray.tune.function_runner import FunctionRunner
+from ray.tune.trainable.function_trainable import FunctionTrainable
 from ray.tune.integration.wandb import WandbLoggerCallback
 from ray.tune.logger import LoggerCallback, Logger
 from ray.tune.utils import flatten_dict
-from ray.tune.trial import Trial
-import glob
-
+from ray.tune.experiment.trial import Trial
 import yaml
 from ray.util.annotations import Deprecated
 import shutil
-import time
-
 
 try:
     import wandb
@@ -259,21 +253,17 @@ class _WandbLoggingProcess(Process):
         config_update.pop("callbacks", None)  # Remove callbacks
         return log, config_update
 
-    def _handle_checkpoint(self, checkpoint_path: str):
-        checkpoint_dir = os.path.dirname(checkpoint_path)
+    def _handle_checkpoint(self, checkpoint_dir: str):
         run_dir = os.path.dirname(checkpoint_dir)
         run_folder_name = os.path.basename(run_dir)
         all_runs_dir = os.path.dirname(run_dir)
-        all_runs_dir = os.path.dirname(run_dir)
 
-
+        # Remove old zipped checkpoints so they aren't added to the archives
         if os.path.exists(f'{checkpoint_dir}.zip'):
             os.remove(f'{checkpoint_dir}.zip')
         shutil.make_archive(checkpoint_dir, 'zip', root_dir=checkpoint_dir)
 
-        # with open(f'{run_dir}/info.txt', 'w') as writer:
-        #     writer.write(f'{run_folder_name}')
-
+        # Save training state data
         with ZipFile(f'{all_runs_dir}.zip', 'w') as myzip:
             for f in [d for d in os.listdir(all_runs_dir) if os.path.isfile(f'{all_runs_dir}/{d}') and '.zip' not in d]:
                 myzip.write(f'{all_runs_dir}/{f}', arcname=f)
@@ -281,19 +271,6 @@ class _WandbLoggingProcess(Process):
                 myzip.write(f'{run_dir}/{f}', arcname=f'{run_folder_name}/{f}')
 
         wandb.run.save(f'{all_runs_dir}.zip', policy='now')
-
-
-        # Save training state files
-        #wandb.run.save(f'{run_dir}/info.txt', policy='now')
-        # wandb.run.save(f'{all_runs_dir}/basic-variant-state-*.json', policy='now')
-        # wandb.run.save(f'{all_runs_dir}/experiment_state-*.json', policy='now')
-        #
-        # # Save run dir files
-        # wandb.run.save(f'{run_dir}/events.out.tfevents*', policy='now')
-        # wandb.run.save(f'{run_dir}/params.json', policy='now')
-        # wandb.run.save(f'{run_dir}/params.pkl', policy='now')
-        # wandb.run.save(f'{run_dir}/progress.csv', policy='now')
-        # wandb.run.save(f'{run_dir}/result.json', policy='now')
 
         # Save checkpoint model data
         wandb.run.save(f'{checkpoint_dir}.zip', policy='now')
@@ -398,7 +375,10 @@ class AnotherWandbLoggerCallback(LoggerCallback):
         self._trial_processes: Dict["Trial", _WandbLoggingProcess] = {}
         self._trial_queues: Dict["Trial", Queue] = {}
 
-    def setup(self):
+    def setup(self, stop: Optional["Stopper"] = None,
+              num_samples: Optional[int] = None,
+              total_num_samples: Optional[int] = None,
+              **info, ):
         self.api_key_file = (
             os.path.expanduser(self.api_key_path) if self.api_key_path else None
         )
@@ -469,7 +449,7 @@ class AnotherWandbLoggerCallback(LoggerCallback):
     def log_trial_save(self, trial: "Trial"):
         if self.save_checkpoints and trial.checkpoint:
             self._trial_queues[trial].put(
-                (_QueueItem.CHECKPOINT, trial.checkpoint.value)
+                (_QueueItem.CHECKPOINT, trial.checkpoint.dir_or_data)
             )
 
     def __del__(self):
@@ -620,7 +600,7 @@ class WandbTrainableMixin:
             )
 
         # Grouping
-        if isinstance(self, FunctionRunner):
+        if isinstance(self, FunctionTrainable):
             default_group = self._name
         else:
             default_group = type(self).__name__

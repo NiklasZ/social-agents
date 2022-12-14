@@ -5,10 +5,10 @@
 # - environment preprocessors
 
 from ml_collections.config_dict import config_dict
-
 from examples.rllib.utils import MeltingPotEnv
 from king_of_the_hill.preprocessor import FrameStacker, RGBObservationWrapper, FullRGBObservationWrapper
-from meltingpot.python import substrate
+from meltingpot.python.substrate import get_factory_from_config
+from ml_collections import config_dict
 
 
 def get_model(name: str):
@@ -18,7 +18,8 @@ def get_model(name: str):
 
 def get_cnn_env_constructor(stack_frames: int):
     def constructor(env_config):
-        env = substrate.build(config_dict.ConfigDict(env_config))
+        config = config_dict.ConfigDict(env_config)
+        env = get_factory_from_config(config).build([])
         env = MeltingPotEnv(env)
         env = RGBObservationWrapper(env)
         env = FrameStacker(env, stack_frames=stack_frames)
@@ -29,7 +30,8 @@ def get_cnn_env_constructor(stack_frames: int):
 
 def get_fully_observable_cnn_env_constructor(world_height: int, world_width: int, stack_frames: int):
     def constructor(env_config):
-        env = substrate.build(config_dict.ConfigDict(env_config))
+        config = config_dict.ConfigDict(env_config)
+        env = get_factory_from_config(config).build([])
         env = MeltingPotEnv(env)
         env = FullRGBObservationWrapper(env, world_height, world_width)
         env = FrameStacker(env, stack_frames=stack_frames)
@@ -40,7 +42,8 @@ def get_fully_observable_cnn_env_constructor(world_height: int, world_width: int
 
 def get_cnn_lstm_constructor():
     def constructor(env_config):
-        env = substrate.build(config_dict.ConfigDict(env_config))
+        config = config_dict.ConfigDict(env_config)
+        env = get_factory_from_config(config).build([])
         env = MeltingPotEnv(env)
         env = RGBObservationWrapper(env)
         return env

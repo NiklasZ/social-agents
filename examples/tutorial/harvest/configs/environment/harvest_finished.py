@@ -149,7 +149,7 @@ APPLE = {
             "kwargs": {
                 "renderMode": "ascii_shape",
                 "spriteNames": ["Apple",],
-                "spriteShapes": [shapes.APPLE],
+                "spriteShapes": [shapes.LEGACY_APPLE],
                 "palettes": [shapes.GREEN_COIN_PALETTE],
                 "noRotates": [True],
             }
@@ -201,7 +201,7 @@ def get_config():
       "levelName":
           "harvest_finished",
       "levelDirectory":
-          "examples//tutorial/harvest/levels",
+          "examples/tutorial/harvest/levels",
       "maxEpisodeLengthFrames":
           1000,
       "numPlayers":

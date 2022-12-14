@@ -2,7 +2,7 @@ from typing import Dict, Any, List, Tuple
 import numpy as np
 import ray
 from gym.wrappers.monitoring.video_recorder import ImageEncoder
-from ray.rllib.agents.ppo import ppo
+from ray.rllib.algorithms.ppo import PPO
 from king_of_the_hill.analysis.captures import get_hill_captures
 from king_of_the_hill.analysis.distances import get_distances
 from king_of_the_hill.analysis.visibility import get_visibilities
@@ -45,7 +45,7 @@ def evaluate(run_config: Dict):
                                                                     checkpoint_folder=checkpoint_folder)
     print(f"Evaluating run: {run_config['rllib_run_name']}, id: {run_config['run_id']}")
     path = f"{checkpoint_path}/{checkpoint_name}"
-    agent = ppo.PPOTrainer(config=config)
+    agent = PPO(config=config)
     agent.restore(
         path)  # If we have a lot of policies RLlib will dump a huge number of pickled policy files (.pkl) into the running directory.
     model_description = get_model(run_config['model_name'])

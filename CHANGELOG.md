@@ -5,6 +5,65 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
+## [2.1.0] - 2022-12-06
+
+### Changed
+
+- Improve debugging information in `SavedModelPolicy`.
+- Resample bots at the beginning of scenario episodes.
+
+### Fixed
+
+- Initialize `Transform` before any other component.
+  [#84](https://github.com/deepmind/meltingpot/issues/84)
+  [#24](https://github.com/deepmind/meltingpot/issues/24)
+
+### Added
+
+- New substrate "Hidden Agenda" and its scenarios.
+
+
+## [2.0.0] - 2022-11-25
+
+Melting Pot Version 2.0.0 release. See
+[Melting Pot 2.0 Tech Report](https://arxiv.org/abs/2211.13746)
+for detailed information on the new substrates, bots, and scenarios.
+
+### Changed
+
+- Removed all v1 scenarios, bots, and substrates and replaced with new versions.
+- Scenarios now support heterogenous roles, which must be specified at build
+  time.
+- Various improvements to `examples` and their documentation.
+
+### Added
+
+- New puppeteers and policies to implement new bots.
+- New utils to handle sprites, colors, and maps.
+- Mocks for use in testing.
+
+
+## [1.0.4] - 2022-08-22
+
+### Changed
+
+- Drop support for Python 3.7 and 3.8.
+- Store saved models on Google Cloud Platform rather than in the Git repo.
+- x2 speed improvement to some substrates
+- Improved `install.sh` script and installation documentation.
+- Various improvements to `examples` and their documentation.
+
+### Fixed
+
+- Puppets were sharing state in Scenarios.
+  [#70](https://github.com/deepmind/meltingpot/issues/70)
+- Various issues with RLlib examples.
+
+### Added
+
+- `.devcontainer` for the project.
+- `pettingzoo` example.
+- TF1-compatible version of `SavedModelPolicy`.
 
 ## [1.0.3] - 2022-03-03
 

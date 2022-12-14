@@ -16,26 +16,20 @@
 from absl.testing import absltest
 from absl.testing import parameterized
 
-from meltingpot.python import bot as bot_factory
-from meltingpot.python import scenario as scenario_factory
+from meltingpot.python import bot
 from meltingpot.python.testing import bots as test_utils
 
 
-def _get_specs(substrate):
-  scenario = next(iter(scenario_factory.SCENARIOS_BY_SUBSTRATE[substrate]))
-  config = scenario_factory.get_config(scenario)
-  return config.background_timestep_spec, config.background_action_spec
-
-
-@parameterized.named_parameters(
-    (name, name) for name in bot_factory.AVAILABLE_BOTS)
+@parameterized.named_parameters((name, name) for name in bot.BOTS)
 class BotTest(test_utils.BotTestCase):
 
   def test_step_without_error(self, name):
-    bot_config = bot_factory.get_config(name)
-    timestep_spec, action_spec = _get_specs(bot_config.substrate)
-    with bot_factory.build(bot_config) as policy:
-      self.assert_compatible(policy, timestep_spec, action_spec)
+    factory = bot.get_factory(name)
+    with factory.build() as policy:
+      self.assert_compatible(
+          policy,
+          timestep_spec=factory.timestep_spec(),
+          action_spec=factory.action_spec())
 
 
 if __name__ == '__main__':
