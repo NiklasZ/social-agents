@@ -13,4 +13,5 @@ social-agents/docs/**\* \
 social-agents/wandb/**\* \
 social-agents/king_of_the_hill/baseline/wandb/**\* \
 social-agents/king_of_the_hill/ray_results/**\* \
-social-agents/king_of_the_hill/videos/**\*
+social-agents/king_of_the_hill/videos/**\* \
+social-agents/king_of_the_hill/evaluation/**\*

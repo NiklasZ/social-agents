@@ -12,6 +12,7 @@ Collects extra metrics during episode. A lot of these rely on the reward structu
 
 # TODO record actions taken (mean)
 # TODO add first hill tile painted
+# TODO track events through episode.last_info_for('player_0') rather than interpreting reward.
 class MetricsCallbacks(DefaultCallbacks):
     def on_episode_start(self,
                          *,

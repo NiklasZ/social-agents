@@ -87,7 +87,7 @@ class MeltingPotEnv(multi_agent_env.MultiAgentEnv):
 
     # Metadata is required by the gym `Env` class that we are extending, to show
     # which modes the `render` method supports.
-    metadata = {'render.modes': ['rgb_array']}
+    metadata = {'render_modes': ['rgb_array']}
 
     def render(self, mode: str) -> np.ndarray:
         """Render the environment.

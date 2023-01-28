@@ -15,7 +15,7 @@ def train(run_config: dict):
     # Local mode ensures the training is executed on a single process so a debugger can be attached
     ray.init(local_mode=run_config['debug_mode'])
     agent_algorithm = 'PPO'
-    rllib_path = '/tmp/ray_results'
+    rllib_path = run_config['rllib_path']
     api_key = get_api_key()
 
     # TODO figure out policy scorer on resume

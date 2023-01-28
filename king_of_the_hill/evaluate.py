@@ -1,8 +1,10 @@
 from typing import Dict, Any, List, Tuple
 import numpy as np
 import ray
+import scipy.io
 from gym.wrappers.monitoring.video_recorder import ImageEncoder
 from ray.rllib.algorithms.ppo import PPO
+from king_of_the_hill.activations import ActivationExtractor
 from king_of_the_hill.analysis.captures import get_hill_captures
 from king_of_the_hill.analysis.distances import get_distances
 from king_of_the_hill.analysis.visibility import get_visibilities
@@ -16,6 +18,11 @@ from king_of_the_hill.models import get_model
 import os
 import glob
 import json
+import warnings
+import pickle
+
+# Ignoring deprecations because 9/10 times it is 3rd libraries complaining about each other.
+warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 
 def log_verbose(value, verbose):
@@ -35,26 +42,56 @@ def get_names(config: Dict, run_config: Dict) -> List[Tuple[str, str]]:
 def evaluate(run_config: Dict):
     # TODO use workers for evaluation
     ray.init(local_mode=run_config['debug_mode'])  # Run with local_mode=True to use debugger
-    rllib_path = '/tmp/ray_results'
-    checkpoint_folder = f"checkpoint_{run_config['checkpoint_number']:06}"
-    checkpoint_name = f"checkpoint-{run_config['checkpoint_number']}"
+    rllib_path = run_config['rllib_path']
+    now = datetime.now()
+    timestamp = now.strftime("%Y-%m-%d-%H-%M-%S")
+    multi_checkpoint = bool(run_config['checkpoint_range'])
+
+    # Pick either one or many checkpoints based on arg
+    if multi_checkpoint:
+        checkpoint_nos = list(range(*run_config['checkpoint_range']))
+    else:
+        checkpoint_nos = [run_config['checkpoint_number']]
+
+    checkpoint_folders = [f"checkpoint_{c:06}" for c in checkpoint_nos]
+    checkpoint_names = [f"checkpoint-{c}" for c in checkpoint_nos]
+
     api_key = get_api_key()
-    checkpoint_path, config, run_config = download_evaluation_state(rllib_path=rllib_path,
-                                                                    run_config=run_config,
-                                                                    api_key=api_key,
-                                                                    checkpoint_folder=checkpoint_folder)
+    checkpoint_paths, config, run_config = download_evaluation_state(rllib_path=rllib_path,
+                                                                     run_config=run_config,
+                                                                     api_key=api_key,
+                                                                     checkpoint_folders=checkpoint_folders)
     print(f"Evaluating run: {run_config['rllib_run_name']}, id: {run_config['run_id']}")
-    path = f"{checkpoint_path}/{checkpoint_name}"
+
+    for checkpoint_path, checkpoint_name in zip(checkpoint_paths, checkpoint_names):
+        print(f'\nEvaluating {checkpoint_name}...')
+        agent_path = f"{checkpoint_path}/{checkpoint_name}"
+
+        base_eval_path = f"evaluation/{run_config['rllib_run_name']}"
+        if multi_checkpoint:
+            eval_path = f"{base_eval_path}/checkpoint-range-{checkpoint_nos[0]}-{checkpoint_nos[-1]}-{timestamp}/{checkpoint_name}"
+        else:
+            eval_path = f"{base_eval_path}/{checkpoint_name}-{timestamp}"
+        evaluate_agent(agent_path=agent_path, eval_path=eval_path, config=config, run_config=run_config)
+
+
+def evaluate_agent(agent_path: str, eval_path: str, config: Dict, run_config: Dict):
+    # path = f"{checkpoint_path}/{checkpoint_name}"
     agent = PPO(config=config)
-    agent.restore(
-        path)  # If we have a lot of policies RLlib will dump a huge number of pickled policy files (.pkl) into the running directory.
+    # If we have a lot of policies RLlib will dump a huge number of pickled policy files (.pkl) into the running directory.
+    agent.restore(agent_path)
+
+    if run_config['activations']:
+        activation_extractor = ActivationExtractor()
+        activation_extractor.register_activation_hooks(agent, run_config['activations'])
+
     model_description = get_model(run_config['model_name'])
     env_constructor = model_description['env_constructor']
     test_env = env_constructor(config["env_config"])
     test_env.metadata['video.frames_per_second'] = run_config['recording_fps']
-    now = datetime.now()
-    timestamp = now.strftime("%Y-%m-%d-%H-%M-%S")
-    eval_path = f"evaluation/{run_config['rllib_run_name']}/{checkpoint_name}-{timestamp}"
+    # now = datetime.now()
+    # timestamp = now.strftime("%Y-%m-%d-%H-%M-%S")
+    # # eval_path = f"evaluation/{run_config['rllib_run_name']}/{checkpoint_name}-{timestamp}"
     video_path = f"{eval_path}/videos"
     recordable_env = RecordVideo(test_env, video_path, video_length=1000, name_prefix='')  # 1000 steps is one episode
 
@@ -75,7 +112,9 @@ def evaluate(run_config: Dict):
         # nested array with following dimensions: [episode #], [timestep t], {player #: other players they are zapping}
         'zaps': [],
         # nested array with the following dimensions: [episode #], [timestep t], {player #: whether they captured the hill}
-        'captures': []
+        'captures': [],
+        # nested array with the following dimensions: [episode #], {player #: [timestep t] [activations]}
+        'activations': []
         # TODO painting hill event
     }
 
@@ -112,6 +151,11 @@ def evaluate(run_config: Dict):
             actions = {}
             # Sorted to ensure we always iterate policy ids in the same order
             for policy, player in get_names(config, run_config):
+
+                # If storing activations, indicate the current player
+                if run_config['activations']:
+                    activation_extractor.set_current_player(player)
+
                 # If using RNN/LSTM we need to keep track of hidden states
                 if config['model']['use_lstm']:
                     action, state_out, _ = agent.compute_single_action(observation=obs[player],
@@ -148,6 +192,14 @@ def evaluate(run_config: Dict):
             for player in observation_recorders:
                 observation_recorders[player].close()
 
+        if run_config['activations']:
+            len(activation_extractor.activations[get_names(config, run_config)[0][1]])
+            ep_activations = {}
+            for _, player in get_names(config, run_config):
+                ep_activations[player] = activation_extractor.activations[player]
+            activation_extractor.clear_activations()
+            metrics['activations'].append(ep_activations)
+
         metrics['rewards'].append(ep_rewards)
         metrics['actions'].append(ep_actions)
         metrics['visibilities'].append(ep_visibilities)
@@ -161,8 +213,9 @@ def evaluate(run_config: Dict):
 
         # Record metrics every few eval steps. Just in case we interrupt evaluation at some point
         if episode % 5 == 0 or episode == run_config['episodes'] - 1:
-            with open(f'{eval_path}/metrics.json', 'w') as convert_file:
-                convert_file.write(json.dumps(metrics))
+            with open(f'{eval_path}/metrics.pkl', 'wb') as f:
+                pickle.dump(metrics, f, protocol=pickle.HIGHEST_PROTOCOL)
+            # scipy.io.savemat(f'{eval_path}/metrics.mat', metrics)
 
 
 if __name__ == "__main__":

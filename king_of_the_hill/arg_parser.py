@@ -62,6 +62,8 @@ def get_train_args():
                        help="the wandb's project name")
         p.add_argument('--debug-mode', action=argparse.BooleanOptionalAction, required=False, default=False,
                        help='toggle in order to allow debugging of code by running it on a local process.')
+        p.add_argument('--rllib-path', required=False, type=str, default='/tmp/ray_results',
+                       help='directory where to save rllib training states to')
 
     args = parser.parse_args()
 
@@ -87,8 +89,13 @@ def get_evaluation_args():
     parser = argparse.ArgumentParser(description='King of the Hill Agent Evaluation')
     parser.add_argument('--run-id', type=str, required=True,
                         help='supply the wandb ID of the run to resume.')
-    parser.add_argument('--checkpoint-number', type=int, required=True,
+    parser.add_argument('--checkpoint-number', type=int, required=False,
                         help='the number of the checkpoint to evaluate')
+    parser.add_argument('--checkpoint-range', type=int, nargs=3, required=False,
+                        help="range of checkpoints to evaluate. This is similar to python's range(). "
+                             "Requires 3 training iteration numbers:(start, end, interval). "
+                             "For example, for checkpoints 10,20,30,40,50,60 using (20,60,20) will get"
+                             "checkpoints 20 and 40")
     parser.add_argument('--episodes', type=int, required=False, default=1,
                         help='the number of episodes to evaluate')
     parser.add_argument('--record-observations', action=argparse.BooleanOptionalAction, required=False,
@@ -103,5 +110,19 @@ def get_evaluation_args():
                         help="when recording, sets the number of steps per second to encode into video.")
     parser.add_argument('--debug-mode', action=argparse.BooleanOptionalAction, required=False, default=False,
                         help='toggle in order to allow debugging of code by running it on a local process.')
+    parser.add_argument('--activations', type=str, required=False,
+                        help='toggle in order to save activations for the provided layer name')
+    parser.add_argument('--rllib-path', required=False, type=str, default='/tmp/ray_results',
+                        help='directory where to save rllib training states to')
+    parser.add_argument('--num-gpus', type=int, required=False, default=0,
+                        help='how many GPUS to use')
+
     args = parser.parse_args()
+
+    if not (args.checkpoint_number or args.checkpoint_range):
+        raise Exception('Either --checkpoint-number or --checkpoint-range must be set')
+
+    if args.checkpoint_number and args.checkpoint_range:
+        raise Exception('Cannot set both --checkpoint-number and --checkpoint-range')
+
     return args
