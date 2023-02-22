@@ -1,0 +1,2 @@
+deps_to_skip="tensorboard|tensorboard-data-server|tensorboard-plugin-wit|tensorboardX|tensorflow|tensorflow-estimator|tensorflow-io-gcs-filesystem|torch|torchaudio|torchvision|dm-env|dm-meltingpot|dm-tree|dmlab2d"
+pip install -r $(grep -ivE $deps_to_skip requirements.txt)
