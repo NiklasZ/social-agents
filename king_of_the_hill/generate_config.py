@@ -4,30 +4,26 @@ import ray
 from ray.rllib.algorithms.ppo import PPO
 from ray.rllib.policy.policy import PolicySpec
 from ray.tune.registry import register_env
+import json
+from king_of_the_hill.arg_parser import default_env_settings
+from king_of_the_hill.callbacks.pooling_self_play import PoolingSelfPlayCallback
 from king_of_the_hill.custom_metrics import MetricsCallbacks
 from king_of_the_hill.callbacks.enhanced_self_play import EnhancedSelfPlayCallback
+from king_of_the_hill.helpers import get_trailing_number
 from king_of_the_hill.models import get_model
 from king_of_the_hill.maps import PLAYABLE_MAPS
+from king_of_the_hill.observation_filters import RGBFilter
 from meltingpot.python.configs.substrates.paintball__king_of_the_hill import get_config
-import re
-
-
-# Gets trailing number from a string.
-# E.g "Bananas123" yields 123
-def get_trailing_number(s: str) -> int:
-    m = re.search(r'\d+$', s)
-    if m:
-        return int(m.group())
-    else:
-        raise Exception(f"No number found at the end of '{s}'")
 
 
 def get_alg_config(run_config: Dict, training=True) -> Dict:
     # Support for generating evaluation configs for older agents whose configs may not have these new fields.
-    # if not training:
-    #     default_values = {'episodes_per_training_iteration': 4,
-    #                       'framework': 'tf2'}
-    #     run_config = run_config | default_values
+    if not training:
+        default_values = {'episodes_per_training_iteration': 4,
+                          'framework': 'tf2',
+                          'env_settings': json.loads(default_env_settings.replace("\'", "\"")),
+                          'obs_filter':  'NoFilter'}
+        run_config = default_values | run_config
 
     # The agent algorithm to use
     # PPO
@@ -47,7 +43,8 @@ def get_alg_config(run_config: Dict, training=True) -> Dict:
     # Set environment config
     env_config = get_config(num_players=run_config['num_agents'],
                             play_map=PLAYABLE_MAPS[map_name]['map'],
-                            map_dimensions=PLAYABLE_MAPS[map_name]['dimensions'])
+                            map_dimensions=PLAYABLE_MAPS[map_name]['dimensions'],
+                            env_settings=run_config['env_settings'])
     config['env_config'] = env_config
     env_constructor = model_description['env_constructor']
     # Register env constructor and name
@@ -87,6 +84,12 @@ def get_alg_config(run_config: Dict, training=True) -> Dict:
             'count_steps_by': 'env_steps',
         }
 
+    # Use observation filter
+    if run_config['obs_filter'] == 'RGBFilter':
+        config['observation_filter'] = RGBFilter
+    else:
+        config['observation_filter'] = run_config['obs_filter']
+
     # Set number of GPUs to use
     config['num_gpus'] = run_config['num_gpus']
     # Set log level ERROR, INFO or DEBUG
@@ -122,9 +125,14 @@ def get_alg_config(run_config: Dict, training=True) -> Dict:
 
     # Set model config
     config['model'] = model_description['model_config']
+
     # Choose whether to play against older policies during training to generalise more.
-    config['callbacks'] = EnhancedSelfPlayCallback if training and run_config[
-        'generalising_self_play'] else MetricsCallbacks
+    if run_config['generalising_self_play'] and training:
+        config['callbacks'] = EnhancedSelfPlayCallback
+    elif run_config['pooled_self_play'] and training:
+        config['callbacks'] = PoolingSelfPlayCallback
+    else:
+        config['callbacks'] = MetricsCallbacks
 
     config['framework'] = run_config['framework']  # set tensorflow or torch framework
     config['num_cpus_per_worker'] = run_config['cpus_per_worker']
@@ -135,6 +143,9 @@ def get_alg_config(run_config: Dict, training=True) -> Dict:
 
     # Sets the number of environments to explore simultaneously. Not Sure if it is beneficial to change this.
     config['num_envs_per_worker'] = run_config['num_parallel_envs'] // run_config['num_workers']
+
+    if run_config['pooled_self_play']:
+        config['evaluation_num_workers'] = run_config['pooled_self_play']['evaluation_num_workers']
 
     config = {k: v for k, v in config.items() if v is not None}  # filter out None values
     return config

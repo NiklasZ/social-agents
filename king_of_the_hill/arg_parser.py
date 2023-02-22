@@ -1,7 +1,31 @@
 import argparse
+import json
 from time import time
-
 from king_of_the_hill.models import MODELS
+
+default_env_settings = json.dumps(
+    {'rewardPerStepInControl': 1.0,  # reward per timestep controlling the hill
+     'penaltyForBeingZapped': 0,  # reward for being zapped
+     'rewardForZapping': 0,  # reward for zapping
+     'framesTillRespawn': 80,  # how many timesteps until an agent respawns after being defeated
+     }
+)
+
+default_pooled_self_play_settings = json.dumps(
+    {'evaluation_num_workers': 8,
+     'mastered_pool_max_prob': 0.4,  # probability of selecting opponents from mastery pool
+     'reward_distance': 30,  # distance in reward for an agent to be considered having "won"
+     'consecutive_training_wins_needed': 3,  # how many training episodes an agent needs to win to master an opponent
+     'consecutive_eval_wins_needed': 5,  # how many evaluation episodes an agent needs to win to master an opponent
+     }
+)
+
+# Maps a particular layer name to the index of the respective dimension in the activation
+supported_activation_layers = {
+    'lstm_hidden': 0,
+    'lstm_cell': 1,
+    'rnn': 0
+}
 
 
 def get_train_args():
@@ -51,10 +75,19 @@ def get_train_args():
     parser_new.add_argument('--generalising-self-play', action=argparse.BooleanOptionalAction, required=False,
                             default=False,
                             help='makes agent play against itself and past agents. Cannot be used alongside --multi-model')
+    parser_new.add_argument('--pooled-self-play', type=str, required=False, default=None,
+                            help='settings JSON for the curriculum pooled-self-play. '
+                            f"Default is: {default_pooled_self_play_settings}")
     parser_new.add_argument('--episodes-per-training-iteration', type=int, required=False, default=4,
                             help='how many episodes to collect before training. Affects the training batch size')
     parser_new.add_argument('--framework', type=str, required=False, default='torch',
                             help="Deep learning framework to use. Must be either 'torch' or 'tf2'.")
+    parser_new.add_argument('--env-settings', type=str, required=False, default=default_env_settings,
+                            help='custom settings to set for the environment (should be a JSON). '
+                                 f"Default is: {default_env_settings}")
+    parser_new.add_argument('--obs-filter', type=str, required=False, default="NoFilter",
+                            help="Whether to perform any normalisation on the observation before passing it to an agent."
+                                 "A common example is 'MeanStdFilter'")
 
     # Shared arguments
     for p in [parser_resume, parser_new]:
@@ -82,6 +115,25 @@ def get_train_args():
         if args.framework not in ['torch', 'tf2']:
             raise Exception("Deep learning framework must be either 'torch' or 'tf2'")
 
+        if args.pooled_self_play and not args.multi_model:
+            raise Exception('Pooled self-play currently only supports multiple models.')
+
+        # Check pooled self-play dict to make sure keys are valid.
+        if args.pooled_self_play:
+            custom_pool_settings = json.loads(args.pooled_self_play.replace("\'", "\""))
+            default_pooling = json.loads(default_pooled_self_play_settings)
+            for key in custom_pool_settings.keys():
+                if key not in default_pooling:
+                    raise Exception(f"Unknown pooled self-play key '{key}'")
+            args.pooled_self_play = default_pooling | custom_pool_settings
+
+        # Check custom env dict to make sure keys are valid.
+        custom_env_setting = json.loads(args.env_settings.replace("\'", "\""))
+        default_env = json.loads(default_env_settings)
+        for key in custom_env_setting.keys():
+            if key not in default_env:
+                raise Exception(f"Unknown reward key '{key}'")
+        args.env_settings = default_env | custom_env_setting
     return args
 
 
@@ -110,8 +162,9 @@ def get_evaluation_args():
                         help="when recording, sets the number of steps per second to encode into video.")
     parser.add_argument('--debug-mode', action=argparse.BooleanOptionalAction, required=False, default=False,
                         help='toggle in order to allow debugging of code by running it on a local process.')
-    parser.add_argument('--activations', type=str, required=False,
-                        help='toggle in order to save activations for the provided layer name')
+    parser.add_argument('--activations', type=str, required=False, nargs='+',
+                        help=f'toggle in order to save activations for the provided layer names. '
+                             f'Supported layer names are {list(supported_activation_layers.keys())}')
     parser.add_argument('--rllib-path', required=False, type=str, default='/tmp/ray_results',
                         help='directory where to save rllib training states to')
     parser.add_argument('--num-gpus', type=int, required=False, default=0,
@@ -125,4 +178,8 @@ def get_evaluation_args():
     if args.checkpoint_number and args.checkpoint_range:
         raise Exception('Cannot set both --checkpoint-number and --checkpoint-range')
 
+    if args.activations:
+        for a in args.activations:
+            if a not in list(supported_activation_layers.keys()):
+                raise Exception(f'Unsupported activation layer {a}. Available layers are {supported_activation_layers}')
     return args

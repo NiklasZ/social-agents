@@ -98,4 +98,18 @@ MODELS = {
         },
         'notes': 'CNN combined with an LSTM, requiring no framestacking'
     },
+    'basic_cnn_lstm_rewards': {
+        'env_constructor': get_cnn_lstm_constructor(),
+        'model_config': {
+            'conv_filters': [[16, [8, 8], 8], [128, [11, 11], 1]],
+            'conv_activation': 'relu',
+            'post_fcnet_hiddens': [256],
+            'post_fcnet_activation': 'relu',
+            'use_lstm': True,
+            'lstm_use_prev_action': True,
+            'lstm_use_prev_reward': True,
+            'lstm_cell_size': 256
+        },
+        'notes': 'CNN combined with an LSTM with previous reward fed into network'
+    },
 }

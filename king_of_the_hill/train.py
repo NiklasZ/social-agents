@@ -2,6 +2,7 @@ import ray
 from ray.tune import tune
 from king_of_the_hill.arg_parser import get_train_args
 from king_of_the_hill.callbacks.enhanced_self_play import PolicyScorer
+from king_of_the_hill.callbacks.pooling_self_play import PolicyPoolManager
 from king_of_the_hill.generate_config import get_alg_config
 from king_of_the_hill.wandb_api import get_api_key, download_train_state
 from king_of_the_hill.wandb_logger_v2 import AnotherWandbLoggerCallback
@@ -19,6 +20,7 @@ def train(run_config: dict):
     api_key = get_api_key()
 
     # TODO figure out policy scorer on resume
+    # TODO figure out policy manager on resume
     if run_config['command'] == 'resume':
         print(f"Resuming wandb run {run_config['run_id']}")
         config, run_config = download_train_state(rllib_path=rllib_path, api_key=api_key, run_config=run_config)
@@ -41,6 +43,9 @@ def train(run_config: dict):
         # Set up policy score tracking across workers
         if run_config['generalising_self_play']:
             scorer = PolicyScorer.options(name='policy_scorer').remote('av')
+
+        if run_config['pooled_self_play']:
+            manager = PolicyPoolManager.options(name='policy_manager').remote(config, run_config)
 
         results = tune.run(
             agent_algorithm,

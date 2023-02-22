@@ -4,6 +4,8 @@ from matplotlib import pyplot as plt
 from tqdm import tqdm
 from king_of_the_hill.wandb_api import make_if_not_exists
 
+# Plots common action sequences that agents take.
+
 eval_path = 'king_of_the_hill/evaluation/run-1663376683/checkpoint-1300-2022-11-08-14-34-10'
 metrics_path = f'{eval_path}/metrics.json'
 

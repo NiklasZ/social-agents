@@ -499,7 +499,7 @@ ACTION_SET = (
 
 
 # The Scene is a non-physical object, its components implement global logic.
-def create_scene():
+def create_scene(env_settings: Optional[Dict[str, Any]] = None):
     """Creates the global scene."""
     scene = {
         "name": "scene",
@@ -523,13 +523,25 @@ def create_scene():
             }
         ]
     }
+
+    # Custom addition to allow configuring rewards
+    if env_settings:
+        component_name = 'HillManager'
+        component_matches = [c for c in scene['components'] if c['component'] == component_name]
+        assert len(
+            component_matches) == 1, f'Expected to match exactly one {component_name} component but found {len(component_matches)}'
+        reward_component = component_matches[0]
+        for key in ['rewardPerStepInControl']:
+            reward_component['kwargs'][key] = env_settings[key]
+
     return scene
 
 
 def create_avatar_object(
         player_idx: int,
         team: str,
-        override_taste_kwargs: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        override_taste_kwargs: Optional[Dict[str, Any]] = None,
+        env_settings: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """Create an avatar object."""
     # Lua is 1-indexed.
     lua_index = player_idx + 1
@@ -684,11 +696,22 @@ def create_avatar_object(
         ]
     }
 
+    # Custom addition to allow configuring rewards
+    if env_settings:
+        component_name = 'ZappedByColor'
+        component_matches = [c for c in avatar_object['components'] if c['component'] == component_name]
+        assert len(
+            component_matches) == 1, f'Expected to match exactly one {component_name} component but found {len(component_matches)}'
+        reward_component = component_matches[0]
+        for key in ['penaltyForBeingZapped', 'rewardForZapping', 'framesTillRespawn']:
+            reward_component['kwargs'][key] = env_settings[key]
+
     return avatar_object
 
 
 def _even_vs_odd_team_assignment(num_players,
-                                 taste_kwargs: Optional[Any] = None):
+                                 taste_kwargs: Optional[Any] = None,
+                                 env_settings: Optional[Any] = None):
     """Assign players with even ids to red team and odd ids to blue team."""
     avatar_objects = []
     for player_idx in range(0, num_players):
@@ -697,14 +720,16 @@ def _even_vs_odd_team_assignment(num_players,
         elif player_idx % 2 == 1:
             team = "blue"
         game_object = create_avatar_object(player_idx, team,
-                                           override_taste_kwargs=taste_kwargs)
+                                           override_taste_kwargs=taste_kwargs,
+                                           env_settings=env_settings)
         avatar_objects.append(game_object)
 
     return avatar_objects
 
 
 def _low_vs_high_team_assignment(num_players,
-                                 taste_kwargs: Optional[Any] = None):
+                                 taste_kwargs: Optional[Any] = None,
+                                 env_settings: Optional[Any] = None):
     """Assign players with id below the median id to blue and above it to red."""
     median = np.median(range(num_players))
     avatar_objects = []
@@ -714,7 +739,8 @@ def _low_vs_high_team_assignment(num_players,
         elif player_idx > median:
             team = "red"
         game_object = create_avatar_object(player_idx, team,
-                                           override_taste_kwargs=taste_kwargs)
+                                           override_taste_kwargs=taste_kwargs,
+                                           env_settings=env_settings)
         avatar_objects.append(game_object)
 
     return avatar_objects
@@ -722,15 +748,18 @@ def _low_vs_high_team_assignment(num_players,
 
 def create_avatar_objects(num_players,
                           taste_kwargs: Optional[Any] = None,
-                          fixed_teams: Optional[bool] = False):
+                          fixed_teams: Optional[bool] = False,
+                          env_settings: Optional[Any] = None):
     """Returns list of avatar objects of length 'num_players'."""
     assert num_players % 2 == 0, "num players must be divisible by 2"
     if fixed_teams:
         avatar_objects = _low_vs_high_team_assignment(num_players,
-                                                      taste_kwargs=taste_kwargs)
+                                                      taste_kwargs=taste_kwargs,
+                                                      env_settings=env_settings)
     else:
         avatar_objects = _even_vs_odd_team_assignment(num_players,
-                                                      taste_kwargs=taste_kwargs)
+                                                      taste_kwargs=taste_kwargs,
+                                                      env_settings=env_settings)
     return avatar_objects
 
 
@@ -739,7 +768,8 @@ def get_config(
         play_map=DEFAULT_ASCII_MAP,
         map_dimensions=(23, 23),
         num_players=8,
-        fixed_teams=False):
+        fixed_teams=False,
+        env_settings: Optional[Dict[str, Any]] = None):
     """Default configuration for training on the king_of_the_hill level."""
     config = config_dict.ConfigDict()
 
@@ -786,6 +816,8 @@ def get_config(
     config.play_map = play_map
     config.fixed_teams = fixed_teams
 
+    config.env_settings = env_settings or {}
+
     config.lab2d_settings = build([], config)
     config.lab2d_settings_builder = build
 
@@ -808,8 +840,9 @@ def build(roles: Sequence[str],
             "gameObjects": create_avatar_objects(
                 config.num_players,
                 taste_kwargs=config.shaping_kwargs,
-                fixed_teams=config.fixed_teams),
-            "scene": create_scene(),
+                fixed_teams=config.fixed_teams,
+                env_settings=config.env_settings),
+            "scene": create_scene(env_settings=config.env_settings),
             "prefabs": PREFABS,
             "charPrefabMap": CHAR_PREFAB_MAP,
         },

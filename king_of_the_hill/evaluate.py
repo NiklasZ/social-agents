@@ -1,7 +1,6 @@
 from typing import Dict, Any, List, Tuple
 import numpy as np
 import ray
-import scipy.io
 from gym.wrappers.monitoring.video_recorder import ImageEncoder
 from ray.rllib.algorithms.ppo import PPO
 from king_of_the_hill.activations import ActivationExtractor
@@ -10,7 +9,7 @@ from king_of_the_hill.analysis.distances import get_distances
 from king_of_the_hill.analysis.visibility import get_visibilities
 from king_of_the_hill.analysis.zapping import get_zaps
 from king_of_the_hill.arg_parser import get_evaluation_args
-from king_of_the_hill.generate_config import get_trailing_number
+from king_of_the_hill.helpers import get_trailing_number
 from gym.wrappers import RecordVideo
 from datetime import datetime
 from king_of_the_hill.wandb_api import get_api_key, download_evaluation_state

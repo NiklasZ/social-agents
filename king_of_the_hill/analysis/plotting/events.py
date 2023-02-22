@@ -2,8 +2,9 @@ import json
 import matplotlib.pyplot as plt
 import numpy as np
 
+# Creates plot of various events in an episode.
+
 # TODO: write a proper argparse
-# TODO embed plot into video
 eval_path = 'king_of_the_hill/evaluation/run-1663376683/checkpoint-1300-2022-12-05-13-35-07'
 metrics_path = f'{eval_path}/metrics.json'
 ep_id = 0

@@ -2,6 +2,8 @@ import json
 import matplotlib.pyplot as plt
 import numpy as np
 
+# Plots distance between players
+
 # TODO: write a proper argparse
 eval_path = 'king_of_the_hill/evaluation/run-1663376683/checkpoint-1300-2022-12-05-14-36-11'
 metrics_path = f'{eval_path}/metrics.json'
