@@ -3,7 +3,11 @@ This a project to find correlations in social representations between artificial
 
 # Installation
 1. Please install Python >=3.9.
-2. Follow the installation instructions from Melting Pot's [README.md](MELTING_POT_README.md). Note: it's usually easiest to run:
+2. Install the project dependencies by running:
+```
+./king_of_the_hill/scripts/install_requirements.sh'
+```
+3. Follow the installation instructions from Melting Pot's [README.md](MELTING_POT_README.md). Note: it's usually easiest to run:
 ```
 ./install.sh
 ```
@@ -15,7 +19,6 @@ pip install -e .['rllib']
 ```
 4. Install either `torch` or `tensorflow`. We currently use `torch~=1.11.0+cu113` (torch 1.11 with CUDA 11.3) 
 although newer versions should also work.
-5. Install `tqdm`,`wandb`
 6. Ensure you have access to the [wandb project](https://wandb.ai/ece-239-as/social_marl_koth) 
 and create a file `king_of_the_hill/wandb_api_key.txt` and paste your API access key into it.
 
@@ -64,5 +67,5 @@ python king_of_the_hill/evaluate.py --run-id 8c82d_00000 --checkpoint-number 1 -
 ```
 
 Which pulls the checkpoint of the 1st training iteration and evaluates 3 episodes. Notably, videos and other collected metrics
-will be put into [king_of_the_hill/evaluation](king_of_the_hill/evaluation).
+will be put into [king_of_the_hill/evaluation](king_of_the_hill/evaluation). For more options, run `python king_of_the_hill/evaluate.py -h`
 
