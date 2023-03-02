@@ -1,6 +1,6 @@
 #!/bin/bash
 # Contains the commands necessary to copy the project to leia or other NECL server
-# usage example:
+# usage examples:
 #       copy_project_to.sh niklasz@leia.ee.ucla.edu /home3/niklasz/social-marl
 #
 cd ~/Desktop/ucla/research_work # set directory from which to zip the project

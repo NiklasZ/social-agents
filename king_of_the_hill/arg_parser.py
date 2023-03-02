@@ -1,6 +1,8 @@
 import argparse
+import itertools
 import json
 from time import time
+from king_of_the_hill.helpers import to_player_name
 from king_of_the_hill.models import MODELS
 
 default_env_settings = json.dumps(
@@ -17,15 +19,33 @@ default_pooled_self_play_settings = json.dumps(
      'reward_distance': 30,  # distance in reward for an agent to be considered having "won"
      'consecutive_training_wins_needed': 3,  # how many training episodes an agent needs to win to master an opponent
      'consecutive_eval_wins_needed': 5,  # how many evaluation episodes an agent needs to win to master an opponent
+     # We never want rllib to evaluate automatically in this mode, but the framework will not run unless we specify one.
+     # This is stupid and shouldn't be.
+     'evaluation_interval': 99999999999999999,
+     # Whether to initialise agents with the same weights or not. Note, this is not the same as seeding. Rather, we copy
+     # the weights from one policy to all the others at the start.
+     'init_with_shared_weights': False,
+     # Who the first frozen opponent to train against should be. Can be "random policy" or "frozen main policy".
+     'init_opponents': 'frozen main policy',
+     # Determines how to sample an opponent from a pool. Supported options are:
+     # "uniform": every opponent has the same probability
+     # "inverse last minimum train reward": samples inversely with respect to the lowest reward achieved against that
+     # opponent the last time they played during training. Effectively, opponents the main policy has recently gotten a
+     # high reward against will be sampled less often than those with a low reward.
+     # This approach is very responsive to recent changes in performance.
+     'mastered_pool_sampling': 'uniform',
+     'competing_pool_sampling': 'uniform'
      }
 )
 
-# Maps a particular layer name to the index of the respective dimension in the activation
-supported_activation_layers = {
-    'lstm_hidden': 0,
-    'lstm_cell': 1,
-    'rnn': 0
-}
+
+def merge_input_json_with_default_json(custom_json: str, default_json: str, setting_name='') -> dict:
+    custom_settings = json.loads(custom_json.replace("\'", "\""))
+    default_settings = json.loads(default_json)
+    for key in custom_settings.keys():
+        if key not in default_settings:
+            raise Exception(f"Unknown f{setting_name} key '{key}'")
+    return default_settings | custom_settings
 
 
 def get_train_args():
@@ -61,6 +81,8 @@ def get_train_args():
                             help='how many worker processes to use. Use only 1 when debugging')
     parser_new.add_argument('--cpus-per-worker', type=int, required=False, default=None,
                             help='how cpus to allocate per worker process')
+    parser_new.add_argument('--num-gpus-per-worker', type=float, required=False, default=0,
+                            help='how many gpus to allocate per worker. Note: this can be fractional (e.g 0.1)')
     parser_new.add_argument('--num-parallel-envs', type=int, required=False,
                             help='how many envs to sample in parallel. If not set, defaults to number of workers')
     parser_new.add_argument('--map-name', type=str, required=False, default='default',
@@ -76,8 +98,8 @@ def get_train_args():
                             default=False,
                             help='makes agent play against itself and past agents. Cannot be used alongside --multi-model')
     parser_new.add_argument('--pooled-self-play', type=str, required=False, default=None,
-                            help='settings JSON for the curriculum pooled-self-play. '
-                            f"Default is: {default_pooled_self_play_settings}")
+                            help='settings JSON for the pooled-self-play. '
+                                 f"Default is: {default_pooled_self_play_settings}")
     parser_new.add_argument('--episodes-per-training-iteration', type=int, required=False, default=4,
                             help='how many episodes to collect before training. Affects the training batch size')
     parser_new.add_argument('--framework', type=str, required=False, default='torch',
@@ -120,21 +142,32 @@ def get_train_args():
 
         # Check pooled self-play dict to make sure keys are valid.
         if args.pooled_self_play:
-            custom_pool_settings = json.loads(args.pooled_self_play.replace("\'", "\""))
-            default_pooling = json.loads(default_pooled_self_play_settings)
-            for key in custom_pool_settings.keys():
-                if key not in default_pooling:
-                    raise Exception(f"Unknown pooled self-play key '{key}'")
-            args.pooled_self_play = default_pooling | custom_pool_settings
+            args.pooled_self_play = merge_input_json_with_default_json(args.pooled_self_play,
+                                                                       default_pooled_self_play_settings,
+                                                                       'pooled self-play')
 
         # Check custom env dict to make sure keys are valid.
-        custom_env_setting = json.loads(args.env_settings.replace("\'", "\""))
-        default_env = json.loads(default_env_settings)
-        for key in custom_env_setting.keys():
-            if key not in default_env:
-                raise Exception(f"Unknown reward key '{key}'")
-        args.env_settings = default_env | custom_env_setting
+        args.env_settings = merge_input_json_with_default_json(args.env_settings,
+                                                               default_env_settings,
+                                                               'env setting')
     return args
+
+
+# Maps a particular layer name to the index of the respective dimension in the activation
+supported_activation_layers = {
+    'lstm_hidden': 0,
+    'lstm_cell': 1,
+    'rnn': 0
+}
+
+# Policies can either be matched up pairwise. E.g: [['policy0','policy1'],['policy0_v0','policy1_v0']]
+# or any vs. any. E.g:
+# ['policy0','policy1','policy0_v0','policy1_v0'] <=>
+# [['policy0','policy1'],['policy0','policy1_v0'], ['policy0_v0','policy1'], ['policy0_v0','policy1_v0']]
+# Where we skip cases where policies play against versions of themselves or as a player they weren't trained to play.
+default_multi_policy = json.dumps({
+    'matchups': [['policy0', 'policy1']],
+})
 
 
 def get_evaluation_args():
@@ -148,6 +181,10 @@ def get_evaluation_args():
                              "Requires 3 training iteration numbers:(start, end, interval). "
                              "For example, for checkpoints 10,20,30,40,50,60 using (20,60,20) will get"
                              "checkpoints 20 and 40")
+    parser.add_argument('--multi-policy', type=str, required=False, default=None,
+                        help='settings JSON if matching up more than 1 policy per player '
+                             f"Default is: {default_multi_policy}. "
+                             f"For more details see argparser comments.")
     parser.add_argument('--episodes', type=int, required=False, default=1,
                         help='the number of episodes to evaluate')
     parser.add_argument('--record-observations', action=argparse.BooleanOptionalAction, required=False,
@@ -182,4 +219,31 @@ def get_evaluation_args():
         for a in args.activations:
             if a not in list(supported_activation_layers.keys()):
                 raise Exception(f'Unsupported activation layer {a}. Available layers are {supported_activation_layers}')
+
+    if args.multi_policy:
+        matchup_dict = merge_input_json_with_default_json(args.multi_policy,
+                                                          default_multi_policy,
+                                                               'multi-policy')
+        matchups = matchup_dict['matchups']
+        list_pattern = all(type(m) is str for m in matchups)
+        tuple_pattern = all(type(m) is list and len(m) == 2 for m in matchups)
+
+        # Convert to tuple pattern
+        if list_pattern:
+            player_map = {to_player_name(p): set() for p in matchups}
+            for p in matchups:
+                player_map[to_player_name(p)].add(p)
+            if len(player_map) != 2:
+                raise Exception(f'Pooled self-play is only designed for 2 players. Found {len(matchups)}')
+            player_names = list(player_map.keys())
+            # Cartesian product to generate every matchup pair
+            args.multi_policy = list(itertools.product(player_map[player_names[0]], player_map[player_names[1]]))
+        # Use tuple pattern as is.
+        elif tuple_pattern:
+            args.multi_policy = matchups
+        else:
+            raise Exception("Pooled self-play arg doesn't match any known pattern")
+
+        print(f'Will evaluate {len(args.multi_policy)} pairs')
+
     return args

@@ -9,20 +9,22 @@ from king_of_the_hill.wandb_api import make_if_not_exists
 
 # Plots Mean Activity Pearson correlation allowing to filter out timesteps based on some criteria
 
-checkpoint_range_dir = 'king_of_the_hill/evaluation/run-1675134255/checkpoint-range-50-1950-2023-02-01-23-14-11'
+checkpoint_range_dir = 'king_of_the_hill/evaluation/run-1677652089/checkpoint-range-100-2900-2023-03-02-00-53-13'
+policy_folder = 'policy0__VS__policy1'
+
 now = datetime.now()
 # timestamp = now.strftime("%Y-%m-%d-%H-%M-%S")
-death_filter = False
+death_filter = True
 mutual_vision_filter = False
 filter_names = ['death', 'vision']
 
-checkpoint_frequency = 100
-checkpoint_start = 50
-checkpoint_end = 1950
+checkpoint_frequency = 200
+checkpoint_start = 100
+checkpoint_end = 2900
 checkpoint_iters = list(range(checkpoint_start, checkpoint_end + checkpoint_frequency, checkpoint_frequency))
 train_count = len(checkpoint_iters)
 
-example_file_path = f'{checkpoint_range_dir}/checkpoint-{checkpoint_start}/metrics.pkl'
+example_file_path = f'{checkpoint_range_dir}/checkpoint-{checkpoint_start}/{policy_folder}/metrics.pkl'
 with open(example_file_path, 'rb') as fp:
     example_pkl_file = pickle.load(fp)
 
@@ -40,7 +42,7 @@ agent_2_activations = {n: np.zeros((train_count, episode_count, timestep_count, 
 activation_masks = np.ones((train_count, episode_count, timestep_count), dtype=bool)
 
 for i, c in tqdm(enumerate(checkpoint_iters)):
-    file_path = f'{checkpoint_range_dir}/checkpoint-{c}/metrics.pkl'
+    file_path = f'{checkpoint_range_dir}/checkpoint-{c}/{policy_folder}/metrics.pkl'
     with open(file_path, 'rb') as fp:
         pkl_file = pickle.load(fp)
 

@@ -9,7 +9,7 @@ from king_of_the_hill.analysis.distances import get_distances
 from king_of_the_hill.analysis.visibility import get_visibilities
 from king_of_the_hill.analysis.zapping import get_zaps
 from king_of_the_hill.arg_parser import get_evaluation_args
-from king_of_the_hill.helpers import get_trailing_number
+from king_of_the_hill.helpers import get_trailing_number, to_player_name
 from gym.wrappers import RecordVideo
 from datetime import datetime
 from king_of_the_hill.wandb_api import get_api_key, download_evaluation_state
@@ -75,10 +75,38 @@ def evaluate(run_config: Dict):
 
 
 def evaluate_agent(agent_path: str, eval_path: str, config: Dict, run_config: Dict):
-    # path = f"{checkpoint_path}/{checkpoint_name}"
     agent = PPO(config=config)
     # If we have a lot of policies RLlib will dump a huge number of pickled policy files (.pkl) into the running directory.
     agent.restore(agent_path)
+
+    if run_config['multi_policy']:
+        for pair in run_config['multi_policy']:
+            evaluate_policies(agent=agent,
+                              eval_path=eval_path,
+                              policy_names=pair,
+                              config=config,
+                              run_config=run_config)
+    else:
+        policy_names = list(agent.workers.local_worker().policy_dict.keys())
+        num_players = config['env_config']['num_players']
+        if len(policy_names) != num_players:
+            raise Exception(f'Expected to have exactly 1 policy per player but have {num_players} players with policies {policy_names}')
+        evaluate_policies(agent=agent,
+                          eval_path=eval_path,
+                          policy_names=policy_names,
+                          config=config,
+                          run_config=run_config)
+
+
+def evaluate_policies(agent: PPO,
+                      policy_names: List[str],
+                      eval_path: str,
+                      config: Dict,
+                      run_config: Dict):
+
+    print(f'Evaluating policies: {policy_names}')
+    matchup_path = f"{eval_path}/{'__VS__'.join(policy_names)}"
+    player_names = [to_player_name(p) for p in policy_names]
 
     if run_config['activations']:
         activation_extractor = ActivationExtractor()
@@ -88,10 +116,7 @@ def evaluate_agent(agent_path: str, eval_path: str, config: Dict, run_config: Di
     env_constructor = model_description['env_constructor']
     test_env = env_constructor(config["env_config"])
     test_env.metadata['video.frames_per_second'] = run_config['recording_fps']
-    # now = datetime.now()
-    # timestamp = now.strftime("%Y-%m-%d-%H-%M-%S")
-    # # eval_path = f"evaluation/{run_config['rllib_run_name']}/{checkpoint_name}-{timestamp}"
-    video_path = f"{eval_path}/videos"
+    video_path = f"{matchup_path}/videos"
     recordable_env = RecordVideo(test_env, video_path, video_length=1000, name_prefix='')  # 1000 steps is one episode
 
     # Evaluation metrics to track
@@ -135,7 +160,7 @@ def evaluate_agent(agent_path: str, eval_path: str, config: Dict, run_config: Di
         if config['model']['use_lstm']:
             prev_actions = {}
             states = {}
-            for _, player in get_names(config, run_config):
+            for player in player_names:
                 # Initial hidden and cell state
                 states[player] = [np.zeros(config['model']['lstm_cell_size'], ) for _ in range(2)]
                 prev_actions[player] = np.zeros(1, dtype='int32')
@@ -145,11 +170,11 @@ def evaluate_agent(agent_path: str, eval_path: str, config: Dict, run_config: Di
                 output_path=f"{video_path}/episode-{episode * 1000}-{player}.mp4",
                 frame_shape=list(obs.values())[0].shape,
                 frames_per_sec=run_config['recording_fps'],
-                output_frames_per_sec=run_config['recording_fps']) for _, player in get_names(config, run_config)}
+                output_frames_per_sec=run_config['recording_fps']) for player in player_names}
         while not done:
             actions = {}
             # Sorted to ensure we always iterate policy ids in the same order
-            for policy, player in get_names(config, run_config):
+            for policy, player in zip(policy_names, player_names):
 
                 # If storing activations, indicate the current player
                 if run_config['activations']:
@@ -192,9 +217,9 @@ def evaluate_agent(agent_path: str, eval_path: str, config: Dict, run_config: Di
                 observation_recorders[player].close()
 
         if run_config['activations']:
-            len(activation_extractor.activations[get_names(config, run_config)[0][1]])
+            len(activation_extractor.activations[player_names[0]])
             ep_activations = {}
-            for _, player in get_names(config, run_config):
+            for player in player_names:
                 ep_activations[player] = activation_extractor.activations[player]
             activation_extractor.clear_activations()
             metrics['activations'].append(ep_activations)
@@ -212,9 +237,8 @@ def evaluate_agent(agent_path: str, eval_path: str, config: Dict, run_config: Di
 
         # Record metrics every few eval steps. Just in case we interrupt evaluation at some point
         if episode % 5 == 0 or episode == run_config['episodes'] - 1:
-            with open(f'{eval_path}/metrics.pkl', 'wb') as f:
+            with open(f'{matchup_path}/metrics.pkl', 'wb') as f:
                 pickle.dump(metrics, f, protocol=pickle.HIGHEST_PROTOCOL)
-            # scipy.io.savemat(f'{eval_path}/metrics.mat', metrics)
 
 
 if __name__ == "__main__":

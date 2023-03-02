@@ -1,23 +1,18 @@
-import tracemalloc
 from typing import Dict, Any, List, Callable, Union, Optional
 from ray.actor import ActorHandle
 from ray.rllib import RolloutWorker, BaseEnv, Policy
 from ray.rllib.algorithms import Algorithm
 from ray.rllib.algorithms.callbacks import DefaultCallbacks
 from ray.rllib.evaluation import Episode
-from ray.rllib.evaluation.episode_v2 import EpisodeV2
-from ray.rllib.evaluation.metrics import collect_episodes, summarize_episodes
 from ray.rllib.evaluation.worker_set import WorkerSet
 import ray
-from ray.rllib.utils.typing import PolicyID
-from ray.util.client.common import ClientActorHandle
-from scalene import scalene_profiler
-
-from king_of_the_hill.custom_metrics import MetricsCallbacks
 import numpy as np
+from ray.rllib.examples.policy.random_policy import RandomPolicy
+from scipy.special import softmax
+from scipy.stats import zscore
 from king_of_the_hill.helpers import get_trailing_number, flatten_list
 
-# FIXME still under construction. Don't use.
+
 @ray.remote
 class PolicyPoolManager:
     def __init__(self, config: Dict[str, Any], run_config: Dict[str, Any]):
@@ -28,6 +23,11 @@ class PolicyPoolManager:
         # Controls how often to sample from the pool of already mastered opponents during training.
         self.mastered_pool_max_prob = run_config['pooled_self_play']['mastered_pool_max_prob']
         self.reward_distance = run_config['pooled_self_play']['reward_distance']
+        self.mastered_pool_sampler = self.get_pool_sampler(run_config['pooled_self_play']['mastered_pool_sampling'])
+        self.competing_pool_sampler = self.get_pool_sampler(run_config['pooled_self_play']['competing_pool_sampling'])
+        self.initial_opponents = run_config['pooled_self_play']['init_opponents']
+        self.init_with_shared_weights = run_config['pooled_self_play']['init_with_shared_weights']
+
         # How many times a main policy needs to win against a competing policy to move the competing policy
         # to the mastered pool
         self.consecutive_training_wins_needed = run_config['pooled_self_play']['consecutive_training_wins_needed']
@@ -39,9 +39,18 @@ class PolicyPoolManager:
         # dict of {policy_id : {opponent_id : consecutive wins}}
         self.policy_consecutive_wins = {p: {} for p in self.main_policy_ids}
         # dict of {policy_id : {opponent_id : (mean reward, num_games)}}
-        self.policy_mean_rewards = {p: {} for p in self.main_policy_ids}
+        self.train_policy_mean_rewards = {p: {} for p in self.main_policy_ids}
+        self.eval_policy_mean_rewards = {p: {} for p in self.main_policy_ids}
+
         # dict of {policy_id : {opponent_id : last reward}}
-        self.policy_last_rewards = {p: {} for p in self.main_policy_ids}
+        # Minimum reward against an opponent in most recent batch of episodes.
+        self.train_policy_min_rewards = {p: {} for p in self.main_policy_ids}
+        self.eval_policy_min_rewards = {p: {} for p in self.main_policy_ids}
+
+        # dict of {policy_id : {opponent_id : last reward}}
+        # Amount of games played against each policy.
+        self.train_episodes_played = {p: {} for p in self.main_policy_ids}
+        self.eval_episodes_played = {p: {} for p in self.main_policy_ids}
 
         self.curriculum_iteration = 0
         # dict of {policy_id : set(frozen_opponent_policy_ids)}
@@ -55,6 +64,35 @@ class PolicyPoolManager:
         # For some reason Rllib oversamples episodes during evaluation so we need to keep track of "dud" episodes
         # that we don't want to measure.
         self.dud_evaluation_episodes = set()  # set of str ids.
+
+    def get_pool_sampler(self, pool_sampling: str):
+        if pool_sampling == 'uniform':
+            return self.sample_uniformly
+        elif pool_sampling == 'inverse last minimum train reward':
+            return self.sample_inverse_to_recent_training_min_reward
+        else:
+            raise Exception(f'Unknown pool sampling config: {pool_sampling}')
+
+    def sample_uniformly(self, main_policy_id: str, pool: set) -> str:
+        return np.random.choice(list(pool))
+
+    def sample_inverse_to_recent_training_min_reward(self, main_policy_id: str, pool: set) -> str:
+        # If the policy hasn't played against each opponent at least once, we choose an unplayed opponent.
+        unplayed_opponents = [o for o in pool if o not in self.train_policy_min_rewards[main_policy_id]]
+
+        if len(unplayed_opponents) > 0:
+            return unplayed_opponents[0]
+
+        rewards = [self.train_policy_min_rewards[main_policy_id][opponent_id] for opponent_id in pool]
+        policy_ids = list(pool)
+        probs = softmax(-zscore(rewards))  # Perform some level of normalisation, z-score and then flip sign.
+
+        # In some cases (e.g when we have one opponent or all policies have the same reward), the z-score will be NaN.
+        # This is not invalid, but simply a consequence of statistics (e.g not enough samples or 0 STD dev).
+        # In such cases we sample uniformly instead.
+        if any([np.isnan(p) for p in probs]):
+            return self.sample_uniformly(main_policy_id, pool)
+        return np.random.choice(policy_ids, p=probs)
 
     def get_attr(self, param_name):
         return getattr(self, param_name)
@@ -78,9 +116,15 @@ class PolicyPoolManager:
     def update_consecutive_wins(self, new_policy_consecutive_wins: dict):
         self.policy_consecutive_wins = new_policy_consecutive_wins
 
-    def update_stats(self, policy_last_rewards: dict, policy_mean_rewards: dict):
-        self.policy_mean_rewards = policy_mean_rewards
-        self.policy_last_rewards = policy_last_rewards
+    def update_stats(self, policy_min_rewards: dict, policy_mean_rewards: dict, episodes_played: dict, eval_mode: True):
+        if eval_mode:
+            self.eval_policy_mean_rewards = policy_mean_rewards
+            self.eval_policy_min_rewards = policy_min_rewards
+            self.eval_episodes_played = episodes_played
+        else:
+            self.train_policy_mean_rewards = policy_mean_rewards
+            self.train_policy_min_rewards = policy_min_rewards
+            self.train_episodes_played = episodes_played
 
     def move_opponent_to_mastered_pool(self, main_policy_id: str, opponent_id: str):
         self.competing_pool[main_policy_id].discard(opponent_id)
@@ -108,13 +152,12 @@ class PolicyPoolManager:
         m_pool_prob = min(len(agent_m_pool) / total_pool_size, self.mastered_pool_max_prob)
         c_pool_prob = 1 - m_pool_prob
 
-        pool_choice = np.random.choice(a=['competitive', 'mastered'], p=[c_pool_prob, m_pool_prob])
+        pool_choice = np.random.choice(a=['competing', 'mastered'], p=[c_pool_prob, m_pool_prob])
 
-        # TODO use weighted, rather than uniform sampling
-        if pool_choice == 'competitive':
-            opponent_id = np.random.choice(list(agent_c_pool))
+        if pool_choice == 'competing':
+            opponent_id = self.competing_pool_sampler(policy_id, agent_c_pool)
         elif pool_choice == 'mastered':
-            opponent_id = np.random.choice(list(agent_m_pool))
+            opponent_id = self.mastered_pool_sampler(policy_id, agent_m_pool)
         else:
             raise Exception(f'Unhandled pool choice {pool_choice}')
 
@@ -170,26 +213,51 @@ class PoolingSelfPlayCallback(DefaultCallbacks):
     def __init__(self):
         super().__init__()
         self.policy_manager = ray.get_actor('policy_manager')
-        self.snapshots = []  # FIXME
 
     def on_algorithm_init(self, *, algorithm: "Algorithm", **kwargs) -> None:
-        # Create frozen opponent policies and add to competing pools
+        print('Initialising Pooling Self-play...')
         main_policy_ids = ray.get(self.policy_manager.get_attr.remote('main_policy_ids'))
-        for id in main_policy_ids:
-            clone_policy_and_add_to_competitive(self.policy_manager, algorithm, id)
+        initial_opponents = ray.get(self.policy_manager.get_attr.remote('initial_opponents'))
+        init_with_shared_weights = ray.get(self.policy_manager.get_attr.remote('init_with_shared_weights'))
+
+        # Initialise against random policies
+        if initial_opponents == 'random policy':
+            temp_env = algorithm.env_creator(algorithm.config['env_config'])
+            for id in main_policy_ids:
+                new_pol_id = f"{id}_random"
+                self.policy_manager.add_new_opponent_to_competing.remote(id, new_pol_id)
+                algorithm.add_policy(policy_id=new_pol_id,
+                                     policy_cls=RandomPolicy,
+                                     observation_space=temp_env.observation_space[f'player_0'],
+                                     action_space=temp_env.action_space[f'player_0'])
+
+                def _set(worker):
+                    worker.set_policy_mapping_fn(training_policy_mapping_fn)
+
+                algorithm.workers.foreach_worker(_set)
+        # Initialise against frozen opponent policies
+        elif initial_opponents == 'frozen main policy':
+            for id in main_policy_ids:
+                clone_policy_and_add_to_competing(self.policy_manager, algorithm, id)
+        else:
+            raise Exception(f'Unknown training opponent initialisation {initial_opponents}')
+
+        # Choose whether to initialise all policies to the same weights
+        if init_with_shared_weights:
+            first_policy_weights = algorithm.get_weights()[main_policy_ids[0]]
+            weights_dict = {m_id: first_policy_weights for m_id in main_policy_ids}
+            algorithm.set_weights(weights_dict)
+            algorithm.workers.sync_weights(policies=main_policy_ids)
 
     def on_train_result(self, *, result: dict, algorithm: Algorithm, trainer=None, **kwargs):
-
-        # FIXME
-        # scalene_profiler.start()
 
         # After training update win_rates and pools.
         consecutive_training_wins_needed = ray.get(
             self.policy_manager.get_attr.remote('consecutive_training_wins_needed'))
-        self._update_win_stats_and_pools(consecutive_training_wins_needed)
+        self._update_win_stats_and_pools(consecutive_training_wins_needed, eval_mode=False)
         competing_pool = ray.get(self.policy_manager.get_attr.remote('competing_pool'))
 
-        # FIXME temporarily hack pool states so we can debug evaluation
+        # We can temporarily hack pool states, so we can debug evaluation
         # for m_id in competing_pool:
         #     for o_id in competing_pool[m_id]:
         #         self.policy_manager.move_opponent_to_mastered_pool.remote(m_id, o_id)
@@ -197,42 +265,44 @@ class PoolingSelfPlayCallback(DefaultCallbacks):
 
         # If there are no more competing policies, run an evaluation
         if all([len(competing_pool[a]) == 0 for a in competing_pool]):
+            print('Running evaluation...')
             consecutive_eval_wins_needed = ray.get(self.policy_manager.get_attr.remote('consecutive_eval_wins_needed'))
             self._evaluate_pools(algorithm, algorithm.evaluation_workers)
-            self._update_win_stats_and_pools(consecutive_eval_wins_needed)
+            self._update_win_stats_and_pools(consecutive_eval_wins_needed, eval_mode=True)
 
             # Get updated pool
             competing_pool = ray.get(self.policy_manager.get_attr.remote('competing_pool'))
             # If there are still no more competing agents, we can freeze the current policies and continue
             if all([len(competing_pool[a]) == 0 for a in competing_pool]):
+                print('Passed evaluation! Creating new agents...')
                 main_policy_ids = ray.get(self.policy_manager.get_attr.remote('main_policy_ids'))
                 self.policy_manager.increment_curriculum_iteration.remote()
                 for policy_id in main_policy_ids:
-                    clone_policy_and_add_to_competitive(self.policy_manager, algorithm, policy_id)
+                    clone_policy_and_add_to_competing(self.policy_manager, algorithm, policy_id)
 
         ray.get(self.policy_manager.reset_evaluation_states.remote())
-        # TODO as we run training (and sometimes evaluation) this conflates their results, which is not great.
         metrics = calculate_metrics(self.policy_manager)
 
         # Add custom metrics
         for m in metrics:
             result[m] = metrics[m]
 
-        # # FIXME
-        # snapshot = tracemalloc.take_snapshot()
-        # self.snapshots.append(snapshot)
-        # top_stats = snapshot.statistics('lineno')
-        # return
-
-    def _update_win_stats_and_pools(self, win_rates_needed: int):
+    def _update_win_stats_and_pools(self, win_rates_needed: int, eval_mode: bool):
         episode_results = ray.get(self.policy_manager.get_attr.remote('episode_results'))
         main_policy_ids = ray.get(self.policy_manager.get_attr.remote('main_policy_ids'))
         reward_distance = ray.get(self.policy_manager.get_attr.remote('reward_distance'))
         consecutive_wins = ray.get(self.policy_manager.get_attr.remote('policy_consecutive_wins'))
-        policy_mean_rewards = ray.get(self.policy_manager.get_attr.remote('policy_mean_rewards'))
-        policy_last_rewards = ray.get(self.policy_manager.get_attr.remote('policy_last_rewards'))
+        if eval_mode:
+            policy_mean_rewards = ray.get(self.policy_manager.get_attr.remote('eval_policy_mean_rewards'))
+            policy_min_rewards = ray.get(self.policy_manager.get_attr.remote('eval_policy_min_rewards'))
+            episodes_played = ray.get(self.policy_manager.get_attr.remote('eval_episodes_played'))
+        else:
+            policy_mean_rewards = ray.get(self.policy_manager.get_attr.remote('train_policy_mean_rewards'))
+            policy_min_rewards = ray.get(self.policy_manager.get_attr.remote('train_policy_min_rewards'))
+            episodes_played = ray.get(self.policy_manager.get_attr.remote('train_episodes_played'))
 
         successful_opponents = {p: set() for p in main_policy_ids}
+        min_rewards = {p: {} for p in main_policy_ids}
 
         # Iterate over episode results and determine winners
         for rewards in episode_results.values():
@@ -244,8 +314,9 @@ class PoolingSelfPlayCallback(DefaultCallbacks):
             # if the opponent and main policies have never played before:
             if opponent_policy not in consecutive_wins[main_policy]:
                 consecutive_wins[main_policy][opponent_policy] = 0
+            if opponent_policy not in policy_mean_rewards[main_policy]:
                 policy_mean_rewards[main_policy][opponent_policy] = (0, 0)
-                policy_last_rewards[main_policy][opponent_policy] = 0
+                policy_min_rewards[main_policy][opponent_policy] = 0
 
             # Main policy won by a sufficient margin
             if policy_rewards[main_policy] > policy_rewards[opponent_policy] + reward_distance:
@@ -255,11 +326,27 @@ class PoolingSelfPlayCallback(DefaultCallbacks):
                 consecutive_wins[main_policy][opponent_policy] = 0  # reset win streak
                 successful_opponents[main_policy].add(opponent_policy)  # add opponent to winners
 
-            # Calculate other stats
-            policy_last_rewards[main_policy][opponent_policy] = policy_rewards[main_policy]
+            # Calculate mean
             prev_mean, num_games = policy_mean_rewards[main_policy][opponent_policy]
             policy_mean_rewards[main_policy][opponent_policy] = (
                 prev_mean + 1 / (num_games + 1) * (policy_rewards[main_policy] - prev_mean), num_games + 1)
+
+            # Calculate min
+            if opponent_policy not in min_rewards[main_policy]:
+                min_rewards[main_policy][opponent_policy] = policy_rewards[main_policy]
+            else:
+                min_rewards[main_policy][opponent_policy] = min(min_rewards[main_policy][opponent_policy],
+                                                                policy_rewards[main_policy])
+            # Update policy play counts
+            if opponent_policy not in episodes_played[main_policy]:
+                episodes_played[main_policy][opponent_policy] = 0
+
+            episodes_played[main_policy][opponent_policy] += 1
+
+        # Update min rewards
+        for m in main_policy_ids:
+            for o in min_rewards[m]:
+                policy_min_rewards[m][o] = min_rewards[m][o]
 
         # Review policy performances and shift around pool if needed
         for m in main_policy_ids:
@@ -274,12 +361,18 @@ class PoolingSelfPlayCallback(DefaultCallbacks):
 
         # Update consecutive wins
         ray.get(self.policy_manager.update_consecutive_wins.remote(consecutive_wins))
-        ray.get(self.policy_manager.update_stats.remote(policy_last_rewards, policy_mean_rewards))
+        ray.get(self.policy_manager.update_stats.remote(policy_min_rewards,
+                                                        policy_mean_rewards,
+                                                        episodes_played,
+                                                        eval_mode))
         ray.get(self.policy_manager.reset_episode_results.remote())
 
     # TODO observation filter will likely not be called on direct evaluation of policies. May need to implement this as an Observation wrapper
     # Yields main custom evaluation function
     def _evaluate_pools(self, algo: Algorithm, eval_workers: WorkerSet):
+
+        # Update eval workers with most recent training state.
+        eval_workers.sync_weights(from_worker=algo.workers.local_worker())
 
         # Generate eval games for workers to use
         eval_games_count = ray.get(self.policy_manager.generate_evaluation_matchups.remote())
@@ -307,84 +400,16 @@ class PoolingSelfPlayCallback(DefaultCallbacks):
         self.policy_manager.update_episode_results.remote(episode.episode_id, rewards)
 
 
-# FIXME
-# TODO flatten policy mapping functions to directly fetch policy manager
 def training_policy_mapping_fn(a_id: str, episode: Episode, worker, **kwargs):
     policy_manager = ray.get_actor('policy_manager')
     policy_id = ray.get(policy_manager.get_training_matchup.remote(episode.episode_id, a_id))
     return policy_id
 
-    # Keeps track of policy maps for an episode
-    # episode_policies = {}  # dict of {episode_id: {agent_id: policy_id}}
-    #
-    # def choose_opponent(agent_id: str,
-    #                     mastered_pool: dict,
-    #                     competing_pool: dict,
-    #                     mastered_pool_max_prob: float) -> str:
-    #
-    #     policy_id = f'policy{get_trailing_number(agent_id)}'
-    #
-    #     agent_m_pool = mastered_pool[policy_id]
-    #     agent_c_pool = competing_pool[policy_id]
-    #
-    #     total_pool_size = len(agent_m_pool) + len(agent_c_pool)
-    #
-    #     # Set the probability for a worker to choose an opponent from each pool.
-    #     # The probability of selecting from the pool of already mastered agents is upper-bounded
-    #     # so the agent doesn't spend too much time playing opponents it can already beat.
-    #     m_pool_prob = min(len(agent_m_pool) / total_pool_size, mastered_pool_max_prob)
-    #     c_pool_prob = 1 - m_pool_prob
-    #
-    #     pool_choice = np.random.choice(a=['competitive', 'mastered'], p=[c_pool_prob, m_pool_prob])
-    #
-    #     # TODO use weighted, rather than uniform sampling
-    #     if pool_choice == 'competitive':
-    #         opponent_id = np.random.choice(list(agent_c_pool))
-    #     elif pool_choice == 'mastered':
-    #         opponent_id = np.random.choice(list(agent_m_pool))
-    #     else:
-    #         raise Exception(f'Unhandled pool choice {pool_choice}')
-    #
-    #     return opponent_id
-    #
-    # def policy_mapping_fn(agent_id: str, episode: Episode, worker, **kwargs):
-    #     episode_id = episode.episode_id
-    #     agent_ids = episode.worker.env.get_agent_ids()
-    #     mastered_pool = ray.get(policy_manager.get_attr.remote('mastered_pool'))
-    #     competing_pool = ray.get(policy_manager.get_attr.remote('competing_pool'))
-    #     mastered_pool_max_prob = ray.get(policy_manager.get_attr.remote('mastered_pool_max_prob'))
-    #     main_policy_ids = ray.get(policy_manager.get_attr.remote('main_policy_ids'))
-    #
-    #     # For a new episode, setup policy map
-    #     if episode_id not in episode_policies:
-    #         episode_policies[episode_id] = {}
-    #
-    #         # Filter main policies where there are no more opponents to compete with.
-    #         # Usually this means we're waiting on some other main policy to finish learning.
-    #         training_main_policies = [m for m in main_policy_ids if len(competing_pool[m]) > 0]
-    #
-    #         # Choose one main policy
-    #         chosen_policy_id = np.random.choice(training_main_policies)
-    #         chosen_agent_id = f'player_{get_trailing_number(chosen_policy_id)}'
-    #         episode_policies[episode_id][chosen_agent_id] = chosen_policy_id
-    #
-    #         # For the opponent, choose a frozen policy
-    #         opponent_agent_id = [a for a in agent_ids if a != chosen_agent_id][0]
-    #         opponent_policy_id = choose_opponent(agent_id=chosen_agent_id,
-    #                                              mastered_pool=mastered_pool,
-    #                                              competing_pool=competing_pool,
-    #                                              mastered_pool_max_prob=mastered_pool_max_prob)
-    #         episode_policies[episode_id][opponent_agent_id] = opponent_policy_id
-    #
-    #     return episode_policies[episode_id][agent_id]
-    #
-    # return policy_mapping_fn
 
-
-# Freezes a current policy and adds it to the other agent's competitive pool.
-def clone_policy_and_add_to_competitive(policy_manager: ActorHandle, algorithm: Algorithm, main_policy_id: str):
+# Freezes a current policy and adds it to the other agent's competing pool.
+def clone_policy_and_add_to_competing(policy_manager: ActorHandle, algorithm: Algorithm, main_policy_id: str):
     curriculum_iteration = ray.get(policy_manager.get_attr.remote('curriculum_iteration'))
-    new_pol_id = f"{algorithm.trial_id}_{main_policy_id}_c_{curriculum_iteration}"
+    new_pol_id = f"{main_policy_id}_v{curriculum_iteration}"
     policy_manager.add_new_opponent_to_competing.remote(main_policy_id, new_pol_id)
 
     temp_env = algorithm.env_creator(algorithm.config['env_config'])
@@ -455,24 +480,35 @@ def apply_to_worker_i(workers: WorkerSet, func: Callable[[RolloutWorker], Any], 
 
 
 def calculate_metrics(policy_manager: ActorHandle):
-    curric_name = 'curriculum_iteration'
-    policy_cons_name = 'policy_consecutive_wins'
-    competing_name = 'competing_pool'
-    mastered_name = 'mastered_pool'
-
-    curriculum_iteration = ray.get(policy_manager.get_attr.remote(curric_name))
-    policy_consecutive_wins = ray.get(policy_manager.get_attr.remote(policy_cons_name))
-    competing_pool = ray.get(policy_manager.get_attr.remote(competing_name))
-    mastered_pool = ray.get(policy_manager.get_attr.remote(mastered_name))
+    curriculum_iteration = ray.get(policy_manager.get_attr.remote('curriculum_iteration'))
+    policy_consecutive_wins = ray.get(policy_manager.get_attr.remote('policy_consecutive_wins'))
+    competing_pool = ray.get(policy_manager.get_attr.remote('competing_pool'))
+    mastered_pool = ray.get(policy_manager.get_attr.remote('mastered_pool'))
     competing_pool_sizes = [len(competing_pool[m]) for m in competing_pool]
     mastered_pool_sizes = [len(mastered_pool[m]) for m in mastered_pool]
-    pmr = ray.get(policy_manager.get_attr.remote('policy_mean_rewards'))
-    policy_mean_rewards = {m: {opp: pmr[m][opp][0]} for m in pmr for opp in pmr[m]}
-    policy_last_rewards = ray.get(policy_manager.get_attr.remote('policy_last_rewards'))
 
-    return {curric_name: curriculum_iteration,
-            policy_cons_name: policy_consecutive_wins,
+    def get_mean_rewards(pmr: dict):
+        mean_rewards = {}
+        for m in pmr:
+            mean_rewards[m] = {opp: pmr[m][opp][0] for opp in pmr[m]}
+        return mean_rewards
+
+    eval_pmr = ray.get(policy_manager.get_attr.remote('eval_policy_mean_rewards'))
+    eval_policy_mean_rewards = get_mean_rewards(eval_pmr)
+    eval_policy_min_rewards = ray.get(policy_manager.get_attr.remote('eval_policy_min_rewards'))
+    train_pmr = ray.get(policy_manager.get_attr.remote('train_policy_mean_rewards'))
+    train_policy_mean_rewards = get_mean_rewards(train_pmr)
+    train_policy_min_rewards = ray.get(policy_manager.get_attr.remote('train_policy_min_rewards'))
+    train_episodes_played = ray.get(policy_manager.get_attr.remote('train_episodes_played'))
+    eval_episodes_played = ray.get(policy_manager.get_attr.remote('eval_episodes_played'))
+
+    return {'curriculum_iteration': curriculum_iteration,
+            'policy_consecutive_wins': policy_consecutive_wins,
             'competing_pool_size': np.sum(competing_pool_sizes),
             'mastered_pool_size': np.sum(mastered_pool_sizes),
-            'policy_last_rewards': policy_last_rewards,
-            'policy_mean_rewards': policy_mean_rewards}
+            'eval_policy_min_rewards': eval_policy_min_rewards,
+            'eval_policy_mean_rewards': eval_policy_mean_rewards,
+            'eval_episodes_played': eval_episodes_played,
+            'train_policy_min_rewards': train_policy_min_rewards,
+            'train_policy_mean_rewards': train_policy_mean_rewards,
+            'train_episodes_played': train_episodes_played}

@@ -98,6 +98,20 @@ MODELS = {
         },
         'notes': 'CNN combined with an LSTM, requiring no framestacking'
     },
+    'chunky_cnn_lstm': {
+        'env_constructor': get_cnn_lstm_constructor(),
+        'model_config': {
+            'conv_filters': [[32, [8, 8], 8], [256, [11, 11], 1]],
+            'conv_activation': 'relu',
+            'post_fcnet_hiddens': [512],
+            'post_fcnet_activation': 'relu',
+            'use_lstm': True,
+            'lstm_use_prev_action': True,
+            'lstm_use_prev_reward': False,
+            'lstm_cell_size': 512
+        },
+        'notes': 'CNN combined with an LSTM, requiring no framestacking'
+    },
     'basic_cnn_lstm_rewards': {
         'env_constructor': get_cnn_lstm_constructor(),
         'model_config': {

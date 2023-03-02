@@ -20,7 +20,8 @@ import dmlab2d
 from gym import spaces
 from ml_collections import config_dict
 import numpy as np
-from ray.rllib.agents import trainer
+# from ray.rllib.agents import trainer
+from ray.rllib.algorithms import algorithm
 from ray.rllib.env import multi_agent_env
 from ray.rllib.policy.sample_batch import DEFAULT_POLICY_ID
 
@@ -144,7 +145,7 @@ class RayModelPolicy(policy.Policy):
   """
 
     def __init__(self,
-                 model: trainer.Trainer,
+                 model: algorithm.Algorithm,
                  policy_id: str = DEFAULT_POLICY_ID) -> None:
         """Initialize a policy instance.
 

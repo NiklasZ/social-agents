@@ -5,7 +5,7 @@ This a project to find correlations in social representations between artificial
 1. Please install Python >=3.9.
 2. Install the project dependencies by running:
 ```
-./king_of_the_hill/scripts/install_requirements.sh'
+./king_of_the_hill/scripts/install_requirements.sh
 ```
 3. Follow the installation instructions from Melting Pot's [README.md](MELTING_POT_README.md). Note: it's usually easiest to run:
 ```
@@ -69,3 +69,5 @@ python king_of_the_hill/evaluate.py --run-id 8c82d_00000 --checkpoint-number 1 -
 Which pulls the checkpoint of the 1st training iteration and evaluates 3 episodes. Notably, videos and other collected metrics
 will be put into [king_of_the_hill/evaluation](king_of_the_hill/evaluation). For more options, run `python king_of_the_hill/evaluate.py -h`
 
+## AWS
+This setup can also be run AWS or any similar cloud service. For further details see [AWS_SETUP_NOTES.md](AWS_SETUP_NOTES.md)

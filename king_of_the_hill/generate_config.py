@@ -22,6 +22,7 @@ def get_alg_config(run_config: Dict, training=True) -> Dict:
         default_values = {'episodes_per_training_iteration': 4,
                           'framework': 'tf2',
                           'env_settings': json.loads(default_env_settings.replace("\'", "\"")),
+                          'num_gpus_per_worker': 0,
                           'obs_filter':  'NoFilter'}
         run_config = default_values | run_config
 
@@ -95,6 +96,7 @@ def get_alg_config(run_config: Dict, training=True) -> Dict:
     # Set log level ERROR, INFO or DEBUG
     config['log_level'] = 'DEBUG' if run_config['debug_mode'] else 'ERROR'
     config['num_workers'] = run_config['num_workers']
+    config['num_gpus_per_worker'] = run_config['num_gpus_per_worker']
     # After n steps, force end episode
     config['horizon'] = config['env_config'].lab2d_settings['maxEpisodeLengthFrames']
     # each unroll happens exactly over one episode
@@ -146,6 +148,8 @@ def get_alg_config(run_config: Dict, training=True) -> Dict:
 
     if run_config['pooled_self_play']:
         config['evaluation_num_workers'] = run_config['pooled_self_play']['evaluation_num_workers']
+        config['evaluation_interval'] = run_config['pooled_self_play']['evaluation_interval']
+
 
     config = {k: v for k, v in config.items() if v is not None}  # filter out None values
     return config
