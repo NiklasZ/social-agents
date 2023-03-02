@@ -2,7 +2,7 @@
 This a project to find correlations in social representations between artificial agents.
 
 # Installation
-1. Please install Python >=3.9.
+1. Please install Python >=3.9 (preferred is 3.9.6)
 2. Install the project dependencies by running:
 ```
 ./king_of_the_hill/scripts/install_requirements.sh
