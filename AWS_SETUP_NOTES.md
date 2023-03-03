@@ -13,39 +13,37 @@ First, install all the tools needed to compile the desired python version (in ou
 2. `sudo apt install build-essential zlib1g-dev libncurses5-dev libbz2-dev libffi-dev libreadline-dev libsqlite3-dev libssl-dev liblzma-dev unzip`
 3. Install pyenv via `curl https://pyenv.run | bash`
 4. Append following lines to `.bashrc`
-
-```
-# Custom additions
-export PYENV_ROOT="$HOME/.pyenv"
-command -v pyenv >/dev/null || export PATH="$PYENV_ROOT/bin:$PATH"
-eval "$(pyenv init -)"
-```
-
+    ```
+    # Custom additions
+    export PYENV_ROOT="$HOME/.pyenv"
+    command -v pyenv >/dev/null || export PATH="$PYENV_ROOT/bin:$PATH"
+    eval "$(pyenv init -)"
+    ```
 5.`source .bashrc`
 6. `pyenv install -v 3.9.6`
 7. `pyenv global 3.9.6`
 
 ### Prepare virtual env
 Now create a virtual python to install project dependencies later.
-3. `mkdir marl`
-4. `cd marl`
-5. Copy project data over via: `./king_of_the_hill/scripts/copy_project_to.sh <user>@<url> <remote_dir>`. An example:
-```
-./king_of_the_hill/scripts/copy_project_to.sh ubuntu@ec2-34-220-207-223.us-west-2.compute.amazonaws.com /home/ubuntu/marl
-```
-6. `pyenv virtualenv marl`
-7. `pyenv shell marl`
+1. `mkdir marl`
+2. `cd marl`
+3. Copy project data over via: `./king_of_the_hill/scripts/copy_project_to.sh <user>@<url> <remote_dir>`. An example:
+    ```
+    ./king_of_the_hill/scripts/copy_project_to.sh ubuntu@ec2-34-220-207-223.us-west-2.compute.amazonaws.com /home/ubuntu/marl
+    ```
+4. `pyenv virtualenv marl`
+5.`pyenv shell marl`
 
 ### Install project dependencies
 This is pretty much identical to the base [README.md](README.md)'s instructions.
 1. `./king_of_the_hill/scripts/install_requirements.sh`
 2.  Install bazel
-```
-sudo apt install apt-transport-https curl gnupg -y
-curl -fsSL https://bazel.build/bazel-release.pub.gpg | gpg --dearmor >bazel-archive-keyring.gpg
-sudo mv bazel-archive-keyring.gpg /usr/share/keyrings
-echo "deb [arch=amd64 signed-by=/usr/share/keyrings/bazel-archive-keyring.gpg] https://storage.googleapis.com/bazel-apt stable jdk1.8" | sudo tee /etc/apt/sources.list.d/bazel.list
-```
+    ```
+    sudo apt install apt-transport-https curl gnupg -y
+    curl -fsSL https://bazel.build/bazel-release.pub.gpg | gpg --dearmor >bazel-archive-keyring.gpg
+    sudo mv bazel-archive-keyring.gpg /usr/share/keyrings
+    echo "deb [arch=amd64 signed-by=/usr/share/keyrings/bazel-archive-keyring.gpg] https://storage.googleapis.com/bazel-apt stable jdk1.8" | sudo tee /etc/apt/sources.list.d/bazel.list
+    ```
 3. Install melting pot `./install.sh`
 4. Install rllib: `pip install -e .['rllib']`
 5. Install torch `pip3 install torch==1.13 torchvision==1.13 torchaudio==1.13`. Note that this is not necessarily the
