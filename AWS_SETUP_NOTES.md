@@ -13,13 +13,13 @@ First, install all the tools needed to compile the desired python version (in ou
 2. `sudo apt install build-essential zlib1g-dev libncurses5-dev libbz2-dev libffi-dev libreadline-dev libsqlite3-dev libssl-dev liblzma-dev unzip`
 3. Install pyenv via `curl https://pyenv.run | bash`
 4. Append following lines to `.bashrc`
-    ```
-    # Custom additions
-    export PYENV_ROOT="$HOME/.pyenv"
-    command -v pyenv >/dev/null || export PATH="$PYENV_ROOT/bin:$PATH"
-    eval "$(pyenv init -)"
-    ```
-5.`source .bashrc`
+```
+# Custom additions
+export PYENV_ROOT="$HOME/.pyenv"
+command -v pyenv >/dev/null || export PATH="$PYENV_ROOT/bin:$PATH"
+eval "$(pyenv init -)"
+```
+5. `source .bashrc`
 6. `pyenv install -v 3.9.6`
 7. `pyenv global 3.9.6`
 
@@ -32,7 +32,7 @@ Now create a virtual python to install project dependencies later.
     ./king_of_the_hill/scripts/copy_project_to.sh ubuntu@ec2-34-220-207-223.us-west-2.compute.amazonaws.com /home/ubuntu/marl
     ```
 4. `pyenv virtualenv marl`
-5.`pyenv shell marl`
+5. `pyenv shell marl`
 
 ### Install project dependencies
 This is pretty much identical to the base [README.md](README.md)'s instructions.
