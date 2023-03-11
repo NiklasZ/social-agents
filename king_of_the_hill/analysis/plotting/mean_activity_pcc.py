@@ -29,7 +29,6 @@ timestep_count, activation_count = next(iter(example_activations.values())).shap
 # Tensors of following dimensions: training iteration (Tr) x episode (E) x timestep (Ti) x activations (A)
 agent_1_activations = {n: np.zeros((train_count, episode_count, timestep_count, activation_count)) for n in activation_layer_names}
 agent_2_activations = {n: np.zeros((train_count, episode_count, timestep_count, activation_count)) for n in activation_layer_names}
-deathless_timesteps = []
 
 for i, c in tqdm(enumerate(checkpoint_iters)):
     file_path = f'{checkpoint_range_dir}/checkpoint-{c}/{policy_folder}/metrics.pkl'
@@ -41,18 +40,14 @@ for i, c in tqdm(enumerate(checkpoint_iters)):
                 agent_1_activations[a][i, j] = pkl_file['activations'][j]['player_0'][a]
                 agent_2_activations[a][i, j] = pkl_file['activations'][j]['player_1'][a]
 
-                timesteps_without_death = len([i for i, p in enumerate(pkl_file['deaths'][j]) if not p['player_0'] and not p['player_1']])
-                deathless_timesteps.append(timesteps_without_death)
-
-
 for a in activation_layer_names:
     # Calculate mean activity
     correlatedActivity = np.zeros((train_count, episode_count))
     temporalControl = np.zeros(correlatedActivity.shape)
     crosspairControl = np.zeros(correlatedActivity.shape)
 
-    a1_z_scored = scipy.stats.zscore(agent_1_activations[a], ddof=1, axis=2)  # z-score across the timestep dimension dimension
-    a2_z_scored = scipy.stats.zscore(agent_2_activations[a], ddof=1, axis=2)  # z-score across the timestep dimension dimension
+    a1_z_scored = scipy.stats.zscore(agent_1_activations[a], ddof=1, axis=2)  # z-score across the timestep dimension
+    a2_z_scored = scipy.stats.zscore(agent_2_activations[a], ddof=1, axis=2)  # z-score across the timestep dimension
 
     # It seems there is some dirty data in the activations (0 activations for a column). When z-scoring on this column
     # The 0-division makes it NaN. We will replace NaN with 0

@@ -23,7 +23,8 @@ def get_alg_config(run_config: Dict, training=True) -> Dict:
                           'framework': 'tf2',
                           'env_settings': json.loads(default_env_settings.replace("\'", "\"")),
                           'num_gpus_per_worker': 0,
-                          'obs_filter':  'NoFilter'}
+                          'obs_filter':  'NoFilter',
+                          'pooled_self_play': None}
         run_config = default_values | run_config
 
     # The agent algorithm to use

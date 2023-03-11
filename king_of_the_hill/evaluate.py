@@ -196,11 +196,12 @@ def evaluate_policies(agent: PPO,
 
             obs, reward, dones, infos = recordable_env.step(actions)
 
+            deaths = {p: (np.max(ob) == 0).item() for p, ob in obs.items()}
+
             ep_rewards.append({p: float(r.item()) for p, r in reward.items()})  # Map numpy array value to regular float
             ep_actions.append({p: int(a.item()) for p, a in actions.items()})
-            ep_visibilities.append(get_visibilities(infos))
+            ep_visibilities.append(get_visibilities(infos, deaths))
             ep_positions.append({p: v['POSITION'].tolist() for p, v in infos.items()})
-            deaths = {p: (np.max(ob) == 0).item() for p, ob in obs.items()}
             ep_deaths.append(deaths)  # if a player is given an empty obs, it has recently been killed
             ep_zaps.append(get_zaps(infos, actions))
             ep_distances.append(get_distances(infos, deaths))

@@ -187,7 +187,7 @@ def get_evaluation_args():
                              f"For more details see argparser comments.")
     parser.add_argument('--episodes', type=int, required=False, default=1,
                         help='the number of episodes to evaluate')
-    parser.add_argument('--record-observations', action=argparse.BooleanOptionalAction, required=False,
+    parser.add_argument('--record-observations', action=argparse.BooleanOptionalAction, required=False, default=False,
                         help="set in order to also get video recordings of agent's observations")
     parser.add_argument('--entity-name', type=str, required=False, default='ece-239-as',
                         help="name of the entity whose run should be resumed")

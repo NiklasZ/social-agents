@@ -1,17 +1,21 @@
 import json
+import pickle
+
 import matplotlib.pyplot as plt
 import numpy as np
 
 # Creates plot of various events in an episode.
 
 # TODO: write a proper argparse
-eval_path = 'king_of_the_hill/evaluation/run-1663376683/checkpoint-1300-2022-12-05-13-35-07'
-metrics_path = f'{eval_path}/metrics.json'
+eval_path = 'king_of_the_hill/evaluation/run-1677743405/checkpoint-range-100-1500-2023-03-04-16-08-31/checkpoint-1500'
+policy_folder = 'policy0__VS__policy1'
+metrics_path = f'{eval_path}/{policy_folder}/metrics.pkl'
+checkpoint_no = 1500
 ep_id = 0
 
 
 def plot_single_step_events(m: dict):
-    if len(m['zaps'][ep_id]) != 2:
+    if len(m['zaps'][ep_id][0]) != 2:
         raise NotImplementedError('Function is only designed for 2 agents')
 
     player_0_zaps = [i for i, p in enumerate(m['zaps'][ep_id]) if len(p['player_0'])]  # Whenever player 0 zaps player 1
@@ -45,7 +49,7 @@ def plot_single_step_events(m: dict):
 
     plt.legend(labels, loc='center left', bbox_to_anchor=(1, 0.5))
     plt.xlabel('timesteps')
-    plt.title('Single timestep events')
+    plt.title(f'Single timestep events at checkpoint {checkpoint_no}')
     ax[0].axes.get_yaxis().set_visible(False)
     # plt.show()
 
@@ -55,6 +59,6 @@ def plot_single_step_events(m: dict):
 
 
 if __name__ == "__main__":
-    with open(metrics_path) as metrics_str:
-        metrics = json.load(metrics_str)
+    with open(metrics_path, 'rb') as metrics_str:
+        metrics = pickle.load(metrics_str)
     plot_single_step_events(metrics)

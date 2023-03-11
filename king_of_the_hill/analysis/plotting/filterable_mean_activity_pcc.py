@@ -9,18 +9,18 @@ from king_of_the_hill.wandb_api import make_if_not_exists
 
 # Plots Mean Activity Pearson correlation allowing to filter out timesteps based on some criteria
 
-checkpoint_range_dir = 'king_of_the_hill/evaluation/run-1677652089/checkpoint-range-100-2900-2023-03-02-00-53-13'
+checkpoint_range_dir = 'king_of_the_hill/evaluation/run-1677743405/checkpoint-range-100-1500-2023-03-04-16-08-31'
 policy_folder = 'policy0__VS__policy1'
 
 now = datetime.now()
 # timestamp = now.strftime("%Y-%m-%d-%H-%M-%S")
-death_filter = True
-mutual_vision_filter = False
-filter_names = ['death', 'vision']
+death_filter = False
+mutual_vision_filter = True
+filter_names = ['death', 'mutual vision']
 
-checkpoint_frequency = 200
+checkpoint_frequency = 100
 checkpoint_start = 100
-checkpoint_end = 2900
+checkpoint_end = 1500
 checkpoint_iters = list(range(checkpoint_start, checkpoint_end + checkpoint_frequency, checkpoint_frequency))
 train_count = len(checkpoint_iters)
 

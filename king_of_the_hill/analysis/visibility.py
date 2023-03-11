@@ -1,9 +1,15 @@
-def get_visibilities(infos: dict) -> dict:
+def get_visibilities(infos: dict, deaths: dict) -> dict:
+    # Filter out dead players as they obviously can't be seen
     player_positions = {p: infos[p]['POSITION'] for p in infos}
     player_orientations = {p: infos[p]['ORIENTATION'] for p in infos}
     player_visibilities = {}
     for p in player_positions:
         player_visibilities[p] = []
+
+        # If the player is dead, then they can't see anyone so we skip them.
+        if deaths[p]:
+            continue
+
         # A position is defined by a (col,row) tuple, with (0,0) being in the top-left corner of the map.
         pos = player_positions[p]
         # Orientation ranges from 0 to 3, where:
@@ -29,8 +35,8 @@ def get_visibilities(infos: dict) -> dict:
         top_left = (pos[0] + left_offsets[orient], pos[1] + up_offsets[orient])
         bottom_right = (pos[0] + right_offsets[orient], pos[1] + down_offsets[orient])
 
-        # Loop over other players
-        for p_2 in [i for i in player_positions if i != p]:
+        # Loop over other players that are not dead
+        for p_2 in [i for i in player_positions if i != p and not deaths[i]]:
             x, y = player_positions[p_2]
             if top_left[0] < x < bottom_right[0] and top_left[1] < y < bottom_right[1]:
                 player_visibilities[p].append(p_2)
