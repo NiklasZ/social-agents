@@ -25,14 +25,13 @@ class ActivationExtractor:
         :return:
         """
 
-        layer_names = [l.split('_')[0] for l in layer_aliases]
-        layer_indices = [supported_activation_layers[l] for l in layer_aliases]
+        layer_names = [supported_activation_layers[l][0] for l in layer_aliases]
+        layer_indices = [supported_activation_layers[l][1] for l in layer_aliases]
 
         for policy_name in agent.config['multiagent']['policies']:
             model = agent.get_policy(policy_name).model
 
             for name, index, alias in zip(layer_names, layer_indices, layer_aliases):
-
                 def save_activations(index: int, alias: str) -> Callable:
                     def save(model, input, output):
                         # RNNs will output a tuple containing the same tensor twice, so we need to pick one.
@@ -40,8 +39,9 @@ class ActivationExtractor:
                             # Need to pick the hidden layer activation, rather than the cell state
                             # (LSTM case. With RNN it doesn't really matter)
                             activation = output[1][index].cpu().detach().numpy().squeeze()
+                        elif type(model).__name__ in ['SlimFC']:
+                            activation = output.cpu().detach().numpy().squeeze()
                         else:
-                            # self.activations[name].append(output.cpu().detach())
                             raise NotImplementedError("Other activation layers not supported. Please implement")
 
                         concatable = np.expand_dims(activation, axis=0)

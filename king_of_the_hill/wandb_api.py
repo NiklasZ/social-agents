@@ -15,7 +15,7 @@ def get_api_key() -> str:
     return api_key
 
 
-def make_if_not_exists(directory: str):
+def make_dir_if_not_exists(directory: str):
     if not os.path.exists(directory):
         os.makedirs(directory)
 
@@ -45,7 +45,7 @@ def download_train_state(rllib_path: str,
     config, run_config = download_config(run_config, run)
 
     all_runs_dir = f"{rllib_path}/{run_config['rllib_run_name']}"
-    make_if_not_exists(all_runs_dir)
+    make_dir_if_not_exists(all_runs_dir)
 
     print('Downloading run state file...')
     state_file_names = [file.name for file in run.files() if 'zip' in file.name and 'checkpoint' not in file.name]
@@ -65,7 +65,7 @@ def download_train_state(rllib_path: str,
     for name in tqdm.tqdm(checkpoint_file_names):
         wandb.restore(name, run_path=run_path, root=run_dir)
         checkpoint_dir = f'{run_dir}/{os.path.splitext(name)[0]}'
-        make_if_not_exists(checkpoint_dir)
+        make_dir_if_not_exists(checkpoint_dir)
         shutil.unpack_archive(f'{checkpoint_dir}.zip', extract_dir=checkpoint_dir)
         os.remove(f'{checkpoint_dir}.zip')
 
@@ -82,7 +82,7 @@ def download_evaluation_state(rllib_path: str,
     run = api.run(run_path)
     config, run_config = download_config(run_config, run)
     evaluation_dir = f"{rllib_path}/{run_config['rllib_run_name']}/evaluation"
-    make_if_not_exists(evaluation_dir)
+    make_dir_if_not_exists(evaluation_dir)
     checkpoint_dirs = []
     for checkpoint_folder in checkpoint_folders:
         checkpoint_dir = f'{evaluation_dir}/{checkpoint_folder}'

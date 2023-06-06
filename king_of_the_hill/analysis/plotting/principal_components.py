@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from tqdm import tqdm
 import pickle
-from king_of_the_hill.wandb_api import make_if_not_exists
+from king_of_the_hill.wandb_api import make_dir_if_not_exists
 
 # Plots Activity PCA Principal Component 1 correlation
 
@@ -144,7 +144,7 @@ for a in activation_layer_names:
 
     # show plot
     chart_dir = f'{checkpoint_range_dir}/charts'
-    make_if_not_exists(chart_dir)
+    make_dir_if_not_exists(chart_dir)
     # chart_path = f"{chart_dir}/{timestamp}_{'_'.join(filters_used)}_pcc_{a}.png"
     chart_path = f"{chart_dir}/pc1_{a}.png"
 

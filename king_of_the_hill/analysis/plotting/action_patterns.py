@@ -2,7 +2,7 @@ import json
 from typing import List
 from matplotlib import pyplot as plt
 from tqdm import tqdm
-from king_of_the_hill.wandb_api import make_if_not_exists
+from king_of_the_hill.wandb_api import make_dir_if_not_exists
 
 # Plots common action sequences that agents take.
 
@@ -103,7 +103,7 @@ def get_action_patterns(episodes: List[List[dict]]):
     colours = ['red', 'blue', -1]
     max_freq = 0
     chart_path = f'{eval_path}/charts/action_frequencies'
-    make_if_not_exists(chart_path)
+    make_dir_if_not_exists(chart_path)
 
     for p in player_ids:
         max_freq = max([t[1] for t in most_frequent_actions[p][1]] + [max_freq])

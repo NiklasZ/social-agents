@@ -1,7 +1,10 @@
 import argparse
 import itertools
 import json
+import shlex
 from time import time
+from typing import Optional
+
 from king_of_the_hill.helpers import to_player_name
 from king_of_the_hill.models import MODELS
 
@@ -153,11 +156,12 @@ def get_train_args():
     return args
 
 
-# Maps a particular layer name to the index of the respective dimension in the activation
+# Maps a particular layer name to the property name and index of the respective dimension in the activation
 supported_activation_layers = {
-    'lstm_hidden': 0,
-    'lstm_cell': 1,
-    'rnn': 0
+    'lstm_hidden': ['lstm', 0],
+    'lstm_cell': ['lstm', 1],
+    'rnn': ['rnn', 0],
+    'action_logits': ['_logits_branch', 0]
 }
 
 # Policies can either be matched up pairwise. E.g: [['policy0','policy1'],['policy0_v0','policy1_v0']]
@@ -170,7 +174,7 @@ default_multi_policy = json.dumps({
 })
 
 
-def get_evaluation_args():
+def get_evaluation_args(arg_str: Optional[str] = None):
     parser = argparse.ArgumentParser(description='King of the Hill Agent Evaluation')
     parser.add_argument('--run-id', type=str, required=True,
                         help='supply the wandb ID of the run to resume.')
@@ -187,6 +191,8 @@ def get_evaluation_args():
                              f"For more details see argparser comments.")
     parser.add_argument('--episodes', type=int, required=False, default=1,
                         help='the number of episodes to evaluate')
+    parser.add_argument('--record-episodes', action=argparse.BooleanOptionalAction, required=False, default=False,
+                        help='whether or not to record videos of episodes played')
     parser.add_argument('--record-observations', action=argparse.BooleanOptionalAction, required=False, default=False,
                         help="set in order to also get video recordings of agent's observations")
     parser.add_argument('--entity-name', type=str, required=False, default='ece-239-as',
@@ -206,8 +212,11 @@ def get_evaluation_args():
                         help='directory where to save rllib training states to')
     parser.add_argument('--num-gpus', type=int, required=False, default=0,
                         help='how many GPUS to use')
+    parser.add_argument('--eval-folder', type=str, required=False, default='',
+                        help='Add a custom sub-folder to add to the evaluation path, '
+                             'changing it to "evaluation/<sub-folder>/<run-id>"')
 
-    args = parser.parse_args()
+    args = parser.parse_args(shlex.split(arg_str)) if arg_str else parser.parse_args()
 
     if not (args.checkpoint_number or args.checkpoint_range):
         raise Exception('Either --checkpoint-number or --checkpoint-range must be set')
@@ -223,7 +232,7 @@ def get_evaluation_args():
     if args.multi_policy:
         matchup_dict = merge_input_json_with_default_json(args.multi_policy,
                                                           default_multi_policy,
-                                                               'multi-policy')
+                                                          'multi-policy')
         matchups = matchup_dict['matchups']
         list_pattern = all(type(m) is str for m in matchups)
         tuple_pattern = all(type(m) is list and len(m) == 2 for m in matchups)

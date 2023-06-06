@@ -18,6 +18,7 @@ def train(run_config: dict):
     agent_algorithm = 'PPO'
     rllib_path = run_config['rllib_path']
     api_key = get_api_key()
+    manager = None
 
     # TODO figure out policy scorer on resume
     # TODO figure out policy manager on resume
@@ -39,13 +40,14 @@ def train(run_config: dict):
                                                                  )])
     else:
         config = get_alg_config(run_config)
-
         # Set up policy score tracking across workers
         if run_config['generalising_self_play']:
-            scorer = PolicyScorer.options(name='policy_scorer').remote('av')
+            manager = PolicyScorer.options(name='policy_scorer').remote('av')
 
         if run_config['pooled_self_play']:
             manager = PolicyPoolManager.options(name='policy_manager').remote(config, run_config)
+
+        print(f"Training for {run_config['training_iterations']} iterations")
 
         results = tune.run(
             agent_algorithm,
@@ -72,6 +74,11 @@ def train(run_config: dict):
         )
 
     print('Training complete')
+
+    # Clean up policy process
+    if manager:
+        ray.kill(manager)
+    ray.shutdown()
 
 
 if __name__ == "__main__":

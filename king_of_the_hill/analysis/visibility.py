@@ -19,6 +19,7 @@ def get_visibilities(infos: dict, deaths: dict) -> dict:
         # 3 is facing west
         orient = player_orientations[p]
 
+        # TODO should avoid hard-coding this and rely on information from the environment settings
         # Each player has an observation around itself, where it can see:
         # 9 rows forwards
         # 1 row backwards

@@ -5,13 +5,12 @@ import matplotlib.pyplot as plt
 import numpy as np
 from tqdm import tqdm
 import pickle
-from king_of_the_hill.wandb_api import make_if_not_exists
+from king_of_the_hill.wandb_api import make_dir_if_not_exists
 
 # Plots Activity PCA top k Principal Components' correlation
 
 checkpoint_range_dir = 'king_of_the_hill/evaluation/run-1675134255/checkpoint-range-50-1950-2023-02-01-23-14-11'
 now = datetime.now()
-# timestamp = now.strftime("%Y-%m-%d-%H-%M-%S")
 
 num_components = 20 # (k)
 checkpoint_frequency = 100
@@ -103,7 +102,7 @@ for a in activation_layer_names:
 
     # show plot
     chart_dir = f'{checkpoint_range_dir}/charts'
-    make_if_not_exists(chart_dir)
+    make_dir_if_not_exists(chart_dir)
     chart_path = f"{chart_dir}/pck_{num_components}_{a}.png"
 
     plt.savefig(chart_path)
