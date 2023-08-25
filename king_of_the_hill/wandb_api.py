@@ -74,21 +74,20 @@ def download_train_state(rllib_path: str,
 
 def download_evaluation_state(rllib_path: str,
                               api_key: str,
+                              run_id: str,
                               run_config: Dict,
-                              checkpoint_folders: List[str]) -> (List[str], Dict, Dict):
-    run_path = f"{run_config['entity_name']}/{run_config['wandb_project_name']}/{run_config['run_id']}"
+                              checkpoint_folder: str) -> (str, Dict, Dict):
+    run_path = f"{run_config['entity_name']}/{run_config['wandb_project_name']}/{run_id}"
+    print(f'Downloading run {run_path}...')
     wandb.login(key=api_key)
     api = wandb.Api(api_key=api_key)
     run = api.run(run_path)
     config, run_config = download_config(run_config, run)
     evaluation_dir = f"{rllib_path}/{run_config['rllib_run_name']}/evaluation"
     make_dir_if_not_exists(evaluation_dir)
-    checkpoint_dirs = []
-    for checkpoint_folder in checkpoint_folders:
-        checkpoint_dir = f'{evaluation_dir}/{checkpoint_folder}'
-        wandb.restore(f'{checkpoint_folder}.zip', run_path=run_path, root=evaluation_dir)
-        shutil.unpack_archive(f'{checkpoint_dir}.zip', extract_dir=checkpoint_dir)
-        print(f"Downloaded checkpoint to {checkpoint_dir}")
-        checkpoint_dirs.append(checkpoint_dir)
+    checkpoint_dir = f'{evaluation_dir}/{checkpoint_folder}'
+    wandb.restore(f'{checkpoint_folder}.zip', run_path=run_path, root=evaluation_dir)
+    shutil.unpack_archive(f'{checkpoint_dir}.zip', extract_dir=checkpoint_dir)
+    print(f"Downloaded checkpoint to {checkpoint_dir}")
 
-    return checkpoint_dirs, config, run_config
+    return checkpoint_dir, config, run_config

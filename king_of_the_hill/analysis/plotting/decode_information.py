@@ -10,7 +10,7 @@ from sklearn.metrics import mean_squared_error
 from sklearn.multioutput import MultiOutputRegressor
 from sklearn.svm import SVR, LinearSVR
 from tqdm import tqdm
-from king_of_the_hill.analysis.plotting.distances import get_relative_positions
+from king_of_the_hill.analysis.plotting.distances import get_relative_player_positions
 from king_of_the_hill.analysis.plotting.filters import filter_by_deaths, filter_by_mutual_vision
 from king_of_the_hill.wandb_api import make_dir_if_not_exists
 
@@ -35,7 +35,7 @@ cache_dir = f'{run_batch_dir}/cache'
 run_paths = sorted([f'{run_batch_dir}/{name}' for name in os.listdir(run_batch_dir) if 'run' in name])
 
 
-@cache_to_disk(3)  # Cache for 3 days
+@cache_to_disk(31)  # Cache for 31 days
 def decode_position_via_linear_regression(run_paths: List[str],
                                           seed: int,
                                           test_ratio: 0.1,
@@ -76,7 +76,7 @@ def decode_position_via_linear_regression(run_paths: List[str],
         for p_idx, p_id in enumerate(player_ids):
             other_p_id = [p for p in player_ids if p != p_id][0]
             relative_pos_func = lambda indices: np.vstack(
-                [get_relative_positions(metrics, ep_id, p_id, other_p_id) for ep_id in indices])
+                [get_relative_player_positions(metrics, ep_id, p_id, other_p_id) for ep_id in indices])
             activations_func = lambda indices: np.vstack(
                 [np.array(metrics['activations'][ep_id][p_id]['lstm_hidden']) for ep_id in indices])
             train_relative_positions = relative_pos_func(train_indices)

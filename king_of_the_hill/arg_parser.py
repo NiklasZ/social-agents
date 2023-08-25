@@ -164,31 +164,27 @@ supported_activation_layers = {
     'action_logits': ['_logits_branch', 0]
 }
 
-# Policies can either be matched up pairwise. E.g: [['policy0','policy1'],['policy0_v0','policy1_v0']]
-# or any vs. any. E.g:
-# ['policy0','policy1','policy0_v0','policy1_v0'] <=>
-# [['policy0','policy1'],['policy0','policy1_v0'], ['policy0_v0','policy1'], ['policy0_v0','policy1_v0']]
-# Where we skip cases where policies play against versions of themselves or as a player they weren't trained to play.
-default_multi_policy = json.dumps({
-    'matchups': [['policy0', 'policy1']],
+# # Policies can either be matched up pairwise. E.g: [['policy0','policy1'],['policy0_v0','policy1_v0']]
+# # or any vs. any. E.g:
+# # ['policy0','policy1','policy0_v0','policy1_v0'] <=>
+# # [['policy0','policy1'],['policy0','policy1_v0'], ['policy0_v0','policy1'], ['policy0_v0','policy1_v0']]
+# # Where we skip cases where policies play against versions of themselves or as a player they weren't trained to play.
+# default_multi_policy = json.dumps({
+#     'matchups': [['policy0', 'policy1']],
+# })
+
+example_policy_structure = json.dumps({
+    'policy_id': 'policy0',
+    'run_id': 'c6bd8_00000',
+    'checkpoint': 1000,
 })
 
 
 def get_evaluation_args(arg_str: Optional[str] = None):
     parser = argparse.ArgumentParser(description='King of the Hill Agent Evaluation')
-    parser.add_argument('--run-id', type=str, required=True,
-                        help='supply the wandb ID of the run to resume.')
-    parser.add_argument('--checkpoint-number', type=int, required=False,
-                        help='the number of the checkpoint to evaluate')
-    parser.add_argument('--checkpoint-range', type=int, nargs=3, required=False,
-                        help="range of checkpoints to evaluate. This is similar to python's range(). "
-                             "Requires 3 training iteration numbers:(start, end, interval). "
-                             "For example, for checkpoints 10,20,30,40,50,60 using (20,60,20) will get"
-                             "checkpoints 20 and 40")
-    parser.add_argument('--multi-policy', type=str, required=False, default=None,
-                        help='settings JSON if matching up more than 1 policy per player '
-                             f"Default is: {default_multi_policy}. "
-                             f"For more details see argparser comments.")
+    parser.add_argument('--policies', type=str, required=False, nargs='+',
+                        help='A list of JSON strings detailing which policies to play against each other'
+                             f"An example structure is: {example_policy_structure}")
     parser.add_argument('--episodes', type=int, required=False, default=1,
                         help='the number of episodes to evaluate')
     parser.add_argument('--record-episodes', action=argparse.BooleanOptionalAction, required=False, default=False,
@@ -218,41 +214,27 @@ def get_evaluation_args(arg_str: Optional[str] = None):
 
     args = parser.parse_args(shlex.split(arg_str)) if arg_str else parser.parse_args()
 
-    if not (args.checkpoint_number or args.checkpoint_range):
-        raise Exception('Either --checkpoint-number or --checkpoint-range must be set')
-
-    if args.checkpoint_number and args.checkpoint_range:
-        raise Exception('Cannot set both --checkpoint-number and --checkpoint-range')
-
     if args.activations:
         for a in args.activations:
             if a not in list(supported_activation_layers.keys()):
                 raise Exception(f'Unsupported activation layer {a}. Available layers are {supported_activation_layers}')
 
-    if args.multi_policy:
-        matchup_dict = merge_input_json_with_default_json(args.multi_policy,
-                                                          default_multi_policy,
-                                                          'multi-policy')
-        matchups = matchup_dict['matchups']
-        list_pattern = all(type(m) is str for m in matchups)
-        tuple_pattern = all(type(m) is list and len(m) == 2 for m in matchups)
+    policy_ids = set()
+    policy_infos = []
+    example_p = json.loads(example_policy_structure)
+    for raw_p in args.policies:
+        p = json.loads(raw_p.replace("\'", "\""))
+        p_fields = set(p.keys())
+        example_p_fields = set(example_p.keys())
+        if p_fields != example_p_fields:
+            raise Exception(
+                f'Policy {p} is missing the following required fields: {example_p_fields.difference(p_fields)}')
+        if p['policy_id'] in policy_ids:
+            raise Exception(f"Duplicate policy id {p['policy_id']} found")
+        policy_ids.add(p['policy_id'])
 
-        # Convert to tuple pattern
-        if list_pattern:
-            player_map = {to_player_name(p): set() for p in matchups}
-            for p in matchups:
-                player_map[to_player_name(p)].add(p)
-            if len(player_map) != 2:
-                raise Exception(f'Pooled self-play is only designed for 2 players. Found {len(matchups)}')
-            player_names = list(player_map.keys())
-            # Cartesian product to generate every matchup pair
-            args.multi_policy = list(itertools.product(player_map[player_names[0]], player_map[player_names[1]]))
-        # Use tuple pattern as is.
-        elif tuple_pattern:
-            args.multi_policy = matchups
-        else:
-            raise Exception("Pooled self-play arg doesn't match any known pattern")
+        policy_infos.append(p)
 
-        print(f'Will evaluate {len(args.multi_policy)} pairs')
+    args.policies = policy_infos
 
     return args

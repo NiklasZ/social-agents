@@ -9,31 +9,12 @@ from sklearn.metrics import explained_variance_score, r2_score
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 
-from king_of_the_hill.analysis.plotting.distances import get_relative_positions
+from king_of_the_hill.analysis.plotting.distances import get_relative_player_positions
 from king_of_the_hill.analysis.plotting.filters import filter_by_deaths, filter_by_mutual_vision
 from king_of_the_hill.wandb_api import make_dir_if_not_exists
 
-# TODO control via argparser
-# Base args to configure
-evaluation_folder = 'koth-multi-train'
-filter_out_deaths = False
-filter_for_mutual_vision = True
-vs_permuted = False
-permute_distance = 50
-# TODO option to plot R2 score
-# Enable to clear function caching
-# delete_disk_caches_for_function('get_plsr')
 
-# Path-related stuff
-working_dir = os.getcwd()
-base_folder = 'social-agents'
-working_dir = working_dir[:working_dir.find(base_folder) + len(base_folder)]  # Ensure we use social-agents as base dir
-run_batch_dir = f'{working_dir}/king_of_the_hill/evaluation/{evaluation_folder}'
-cache_dir = f'{run_batch_dir}/cache'
-run_paths = sorted([f'{run_batch_dir}/{name}' for name in os.listdir(run_batch_dir) if 'run' in name])
-
-
-@cache_to_disk(3)  # Cache for 3 days
+@cache_to_disk(31)  # Cache for 31 days
 def get_plsr(run_paths: List[str],
              filter_out_deaths: bool,
              filter_for_mutual_vision: bool,
@@ -76,7 +57,7 @@ def get_plsr(run_paths: List[str],
             other_p_id = [p for p in player_ids if p != p_id][0]
             for ep_id in range(episode_count):
                 # Take difference between positions
-                relative_positions = get_relative_positions(metrics, ep_id, p_id, other_p_id)
+                relative_positions = get_relative_player_positions(metrics, ep_id, p_id, other_p_id)
                 player_hidden_activations = np.array(metrics['activations'][ep_id][p_id]['lstm_hidden'])
 
                 # Calculate PLSR
@@ -107,43 +88,62 @@ def get_plsr(run_paths: List[str],
     return mean_rewards, mean_explained_variances, mean_r2_scores
 
 
-mean_rewards, mean_explained_variances, mean_r2_scores = get_plsr(run_paths,
-                                                                  filter_out_deaths,
-                                                                  filter_for_mutual_vision,
-                                                                  vs_permuted,
-                                                                  permute_distance)
-print(mean_explained_variances)
-print(mean_r2_scores)
-print(mean_rewards)
+if __name__ == "__main__":
+    # TODO control via argparser
+    # Base args to configure
+    evaluation_folder = 'koth-multi-train'
+    filter_out_deaths = False
+    filter_for_mutual_vision = True
+    vs_permuted = False
+    permute_distance = 50
+    # TODO option to plot R2 score
+    # Enable to clear function caching
+    # delete_disk_caches_for_function('get_plsr')
 
-fig = plt.figure(figsize=(10, 6))
-flat_variances = mean_explained_variances.flatten()
-flat_rewards = mean_rewards.flatten()
-plt.scatter(flat_variances, flat_rewards)
+    # Path-related stuff
+    working_dir = os.getcwd()
+    base_folder = 'social-agents'
+    working_dir = working_dir[
+                  :working_dir.find(base_folder) + len(base_folder)]  # Ensure we use social-agents as base dir
+    run_batch_dir = f'{working_dir}/king_of_the_hill/evaluation/{evaluation_folder}'
+    run_paths = sorted([f'{run_batch_dir}/{name}' for name in os.listdir(run_batch_dir) if 'run' in name])
 
-xlabel = 'Variance Explained'
-title = 'PLSR Agent Return vs. Position Explained'
-fig_name = 'plsr_position'
+    mean_rewards, mean_explained_variances, mean_r2_scores = get_plsr(run_paths,
+                                                                      filter_out_deaths,
+                                                                      filter_for_mutual_vision,
+                                                                      vs_permuted,
+                                                                      permute_distance)
+    print(mean_explained_variances)
+    print(mean_r2_scores)
+    print(mean_rewards)
+    fig = plt.figure(figsize=(10, 6))
+    flat_variances = mean_explained_variances.flatten()
+    flat_rewards = mean_rewards.flatten()
+    plt.scatter(flat_variances, flat_rewards)
 
-if filter_out_deaths:
-    title += '+ Only Alive Filter'
-    fig_name += '-death_filtered'
+    xlabel = 'Variance Explained'
+    title = 'PLSR Agent Return vs. Position Explained'
+    fig_name = 'plsr_position'
 
-if filter_for_mutual_vision:
-    title += '+ Mutual Vision Filter'
-    fig_name += '-mutual_vision_filtered'
+    if filter_out_deaths:
+        title += '+ Only Alive Filter'
+        fig_name += '-death_filtered'
 
-if vs_permuted:
-    xlabel += ' (Base - Permuted)'
-    fig_name += '-vs_permuted'
+    if filter_for_mutual_vision:
+        title += '+ Mutual Vision Filter'
+        fig_name += '-mutual_vision_filtered'
 
-plot_dir = f'{run_batch_dir}/plots'
-make_dir_if_not_exists(plot_dir)
-plt.title(title)
-plt.xlabel(xlabel)
-plt.ylabel('Mean Return')
-z = np.polyfit(flat_variances, flat_rewards, 1)
-p = np.poly1d(z)
-plt.plot(flat_variances, p(flat_variances), "r--")
-plt.savefig(f'{plot_dir}/{fig_name}.png')
-plt.show()
+    if vs_permuted:
+        xlabel += ' (Base - Permuted)'
+        fig_name += '-vs_permuted'
+
+    plot_dir = f'{run_batch_dir}/plots'
+    make_dir_if_not_exists(plot_dir)
+    plt.title(title)
+    plt.xlabel(xlabel)
+    plt.ylabel('Mean Return')
+    z = np.polyfit(flat_variances, flat_rewards, 1)
+    p = np.poly1d(z)
+    plt.plot(flat_variances, p(flat_variances), "r--")
+    plt.savefig(f'{plot_dir}/{fig_name}.png')
+    plt.show()
