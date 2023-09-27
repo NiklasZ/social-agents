@@ -6,7 +6,7 @@ from time import time
 from typing import Optional
 
 from king_of_the_hill.helpers import to_player_name
-from king_of_the_hill.models import MODELS
+from king_of_the_hill.models.models import MODELS
 
 default_env_settings = json.dumps(
     {'rewardPerStepInControl': 1.0,  # reward per timestep controlling the hill
@@ -208,6 +208,8 @@ def get_evaluation_args(arg_str: Optional[str] = None):
                         help='directory where to save rllib training states to')
     parser.add_argument('--num-gpus', type=int, required=False, default=0,
                         help='how many GPUS to use')
+    parser.add_argument('--score-for-dormant-activations', action=argparse.BooleanOptionalAction, required=False, default=False,
+                        help='Yields normalised scores of activations of neurons')
     parser.add_argument('--eval-folder', type=str, required=False, default='',
                         help='Add a custom sub-folder to add to the evaluation path, '
                              'changing it to "evaluation/<sub-folder>/<run-id>"')

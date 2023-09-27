@@ -10,7 +10,7 @@ from king_of_the_hill.callbacks.pooling_self_play import PoolingSelfPlayCallback
 from king_of_the_hill.custom_metrics import MetricsCallbacks
 from king_of_the_hill.callbacks.enhanced_self_play import EnhancedSelfPlayCallback
 from king_of_the_hill.helpers import get_trailing_number
-from king_of_the_hill.models import get_model
+from king_of_the_hill.models.models import get_model
 from king_of_the_hill.maps import PLAYABLE_MAPS
 from king_of_the_hill.observation_filters import RGBFilter
 from meltingpot.python.configs.substrates.paintball__king_of_the_hill import get_config

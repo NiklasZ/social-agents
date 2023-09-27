@@ -5,7 +5,7 @@ import numpy as np
 import ray
 from gym.wrappers.monitoring.video_recorder import ImageEncoder
 from ray.rllib.algorithms.ppo import PPO
-from king_of_the_hill.activations import ActivationExtractor
+from king_of_the_hill.activations import ActivationExtractor, NeuronScorer
 from king_of_the_hill.analysis.captures import get_hill_captures
 from king_of_the_hill.analysis.distances import get_distances
 from king_of_the_hill.analysis.visibility import get_visibilities
@@ -17,7 +17,7 @@ from gym.wrappers import RecordVideo
 from datetime import datetime
 from king_of_the_hill.maps import PLAYABLE_MAPS
 from king_of_the_hill.wandb_api import get_api_key, download_evaluation_state, make_dir_if_not_exists
-from king_of_the_hill.models import get_model, MODELS
+from king_of_the_hill.models.models import get_model, MODELS
 import os
 import glob
 import warnings
@@ -112,6 +112,7 @@ def evaluate_agents(agent_paths: List[str],
 
     current_time = time.time()
     activations_names = agent_dicts[0]['run_config']['activations']
+    score_activations = agent_dicts[0]['run_config']['score_for_dormant_activations']
     env_config = agent_dicts[0]['config']['env_config']
     # Assume agents have the same model for now
     model_description = MODELS[agent_dicts[0]['run_config']['model_name']]
@@ -132,10 +133,17 @@ def evaluate_agents(agent_paths: List[str],
         agent_dict['player'] = to_player_name(agent_dict['policy_id'])
         player_names.append(agent_dict['player'])
 
+    # If set, store activations from final layers
     if activations_names:
         activation_extractor = ActivationExtractor()
         for a, d in zip(agents, agent_dicts):
             activation_extractor.register_activation_hooks(a, d['policy_id'], activations_names)
+
+    # If set, score activations for every neuron in net, relative to layer
+    if score_activations:
+        neuron_scorer = NeuronScorer()
+        for a, d in zip(agents, agent_dicts):
+            neuron_scorer.register_activation_hooks(a.get_policy(d['policy_id']).model, d['player'])
 
     test_env = env_constructor(env_config)
     test_env.metadata['video.frames_per_second'] = recording_fps
@@ -167,7 +175,9 @@ def evaluate_agents(agent_paths: List[str],
         # nested array with the following dimensions: [episode #], {player #: [timestep t] [activations]}
         'activations': [],
         # for other information that does not need to be recorded per episode
-        'other': {}
+        'other': {},
+        # activation scores for each neuron relative to its layer (used to determine dormant neurons later)
+        'relative_activation_scores': {}
         # TODO painting hill event
     }
 
@@ -221,6 +231,10 @@ def evaluate_agents(agent_paths: List[str],
                 if activations_names:
                     activation_extractor.set_current_player(player)
 
+                # If scoring activations, indicate the current player
+                if score_activations:
+                    neuron_scorer.set_current_player(player)
+
                 # If using RNN/LSTM we need to keep track of hidden states
                 if model_description['model_config']['use_lstm']:
                     action, state_out, _ = agent.compute_single_action(observation=obs[player],
@@ -266,6 +280,9 @@ def evaluate_agents(agent_paths: List[str],
                 ep_activations[player] = activation_extractor.activations[player]
             activation_extractor.clear_activations()
             metrics['activations'].append(ep_activations)
+
+        if score_activations:
+            metrics['relative_activation_scores'] = neuron_scorer.activation_scores
 
         metrics['rewards'].append(ep_rewards)
         metrics['actions'].append(ep_actions)

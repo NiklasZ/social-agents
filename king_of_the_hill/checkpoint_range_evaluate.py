@@ -18,16 +18,16 @@ from king_of_the_hill.evaluate import get_eval_path, run_eval_and_clean
 wandb_entity = 'ece-239-as'
 wandb_project = 'social_marl_koth'
 
-checkpoints = list(range(100, 1600, 100))
-episodes = 50
+checkpoints = list(range(100, 1600, 200))
+episodes = 10
 policy_ids = ['policy0', 'policy1']
 group_name = 'koth-multi-train'
-batch_folder = f'{group_name}_4x_best'
+batch_folder = f'{group_name}_dormant_neurons'
 
 # What to filter runs by
 run_filters = {'group': group_name, 'state': 'finished'}
-eval_arguments = f"--episodes {episodes} --num-gpus 1 --activations lstm_hidden action_logits"
-rllib_ids = ['run-1683514150', 'run-1683419885', 'run-1683705215', 'run-1683401773', 'run-1683629797', 'run-1683705215']
+eval_arguments = f"--episodes {episodes} --num-gpus 1 --activations lstm_hidden action_logits --score-for-dormant-activations"
+rllib_ids = ['run-1683629797'] #['run-1683514150', 'run-1683419885', 'run-1683401773', 'run-1683629797']
 
 # Query the WandB API for runs with exactly 1500 training iterations
 api = wandb.Api()
