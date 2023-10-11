@@ -2,8 +2,9 @@ from collections import defaultdict
 from copy import deepcopy
 from typing import Callable, List
 import numpy as np
+import torch
 from ray.rllib.algorithms.ppo import PPO
-from ray.rllib.train import torch
+
 from king_of_the_hill.arg_parser import supported_activation_layers
 
 
@@ -71,6 +72,7 @@ class ActivationExtractor:
         for hook in self.hooks:
             hook.remove()
 
+
 def has_trainable_parameters(module: torch.nn.Module) -> bool:
     """
     Checks if a module has any trainable parameters
@@ -79,6 +81,7 @@ def has_trainable_parameters(module: torch.nn.Module) -> bool:
     """
     return any(p.requires_grad for p in module.parameters())
 
+
 def filter_children_by_trainable_parameters(module: torch.nn.Module) -> List[torch.nn.Module]:
     """
     Filters a module's children by those with trainable parameters
@@ -86,6 +89,7 @@ def filter_children_by_trainable_parameters(module: torch.nn.Module) -> List[tor
     :return:
     """
     return [child for child in module.children() if has_trainable_parameters(child)]
+
 
 class NeuronScorer:
     """
@@ -97,7 +101,8 @@ class NeuronScorer:
     It should be noted that at the time of writing, the agents do not seem to exhibit this increase in dormant neurons.
     There could be many reasons for this, but we will monitor for increased dormancy in future experiments just in case.
     """
-    def __init__(self, scoring_batch_size:int = 256):
+
+    def __init__(self, scoring_batch_size: int = 256):
         # Dict indexed as follows: {player_name: {layer_name: {layer_property: activations}}}
         # layer_property is needed as some trainable layers are have multiple trainable weights that need to be scored separately
         self.activations = {}

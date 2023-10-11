@@ -3,7 +3,7 @@ from typing import List, T
 import cv2
 import numpy as np
 
-from examples.rllib.utils import MeltingPotEnv
+from deepmind.examples.rllib.utils import MeltingPotEnv
 
 
 # Gets trailing number from a string.
@@ -53,7 +53,7 @@ def get_world_rgb_bounding_box(env: MeltingPotEnv) -> (int, int, int, int):
     """
     env.reset()
     action = env.action_space.sample()
-    _, _, _, info = env.step(action)
+    _, _, _, _, info = env.step(action)
     player_id = list(info.keys())[0]
     world_rgb_arr = info[player_id]['WORLD.RGB']
 

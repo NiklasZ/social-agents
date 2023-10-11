@@ -202,7 +202,7 @@ if __name__ == "__main__":
         'player_returns': [player_returns],
         'player_policies': [player_policies],
         'filter_out_deaths': [False],  # [False, True],
-        'filter_for_mutual_vision': [False],  # [False, True],
+        'filter_for_mutual_vision': [True],  # [False, True],
         'permute_distance': [permute_distance],
         'self_feature_names': [['Relative Hill Position', 'Player Action']],
         'other_feature_names': [['Relative Player Position', 'Opponent Action']]
@@ -218,6 +218,7 @@ if __name__ == "__main__":
         kwargs = {keys[i]: val for i, val in enumerate(combination)}
         # Call the function with the combination of parameter values
         results = get_cross_plsr(**kwargs)
+        pass
 
         # plot_plsr(plot_path=cross_play_path,
         #           mean_returns=mean_returns,

@@ -1,9 +1,13 @@
+import numpy as np
 import ray
+from ray.air.integrations.wandb import WandbLoggerCallback
 from ray.tune import tune
 from king_of_the_hill.arg_parser import get_train_args
 from king_of_the_hill.callbacks.enhanced_self_play import PolicyScorer
 from king_of_the_hill.callbacks.pooling_self_play import PolicyPoolManager
+from king_of_the_hill.callbacks.trial_state_logger import PrintResultCallback
 from king_of_the_hill.generate_config import get_alg_config
+from king_of_the_hill.models.models import get_cnn_lstm_constructor
 from king_of_the_hill.wandb_api import get_api_key, download_train_state
 from king_of_the_hill.wandb_logger_v2 import AnotherWandbLoggerCallback
 
@@ -14,7 +18,8 @@ def train(run_config: dict):
     # 6. Initialize ray, train and save
 
     # Local mode ensures the training is executed on a single process so a debugger can be attached
-    ray.init(local_mode=run_config['debug_mode'])
+    num_gpus = int(np.ceil(run_config['num_gpus'] + run_config['num_gpus_per_worker'] * run_config['num_workers']))
+    ray.init(local_mode=run_config['debug_mode'], num_gpus=num_gpus)
     agent_algorithm = 'PPO'
     rllib_path = run_config['rllib_path']
     api_key = get_api_key()
@@ -58,6 +63,7 @@ def train(run_config: dict):
             mode='max',
             name=run_config['rllib_run_name'],
             checkpoint_at_end=True,
+            verbose=2 if run_config['debug_mode'] else 1,
             checkpoint_freq=run_config['checkpoint_frequency'],
             callbacks=[
                 AnotherWandbLoggerCallback(api_key=api_key,
@@ -69,7 +75,8 @@ def train(run_config: dict):
                                            # worst a bit redundant.
                                            config={'run_config': run_config, 'full_config': config},
                                            save_checkpoints=True
-                                           )
+                                           ),
+                PrintResultCallback()
             ]
         )
 

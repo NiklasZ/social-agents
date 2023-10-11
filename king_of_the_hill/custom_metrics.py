@@ -2,6 +2,7 @@ from typing import List, Optional, Dict
 from ray.rllib import BaseEnv, Policy
 from ray.rllib.algorithms.callbacks import DefaultCallbacks
 from ray.rllib.evaluation import Episode
+from ray.rllib.evaluation.episode_v2 import EpisodeV2
 from ray.rllib.utils.typing import PolicyID
 from ray.tune import Callback
 
@@ -19,7 +20,7 @@ class MetricsCallbacks(DefaultCallbacks):
                          worker: "RolloutWorker",
                          base_env: BaseEnv,
                          policies: Dict[PolicyID, Policy],
-                         episode: Episode,
+                         episode: EpisodeV2,
                          **kwargs):
         # We will use the `MultiAgentEpisode` object being passed into
         # all episode-related callbacks. It comes with a user_data property (dict),
@@ -41,13 +42,13 @@ class MetricsCallbacks(DefaultCallbacks):
                         *,
                         worker,
                         base_env,
-                        episode: Episode,
+                        episode: EpisodeV2,
                         env_index,
                         **kwargs):
         # Red team reward
-        r = episode.last_reward_for('player_0')
+        r = episode._agent_reward_history['player_0'][-1]
         # Blue team reward
-        b = episode.last_reward_for('player_1')
+        b = episode._agent_reward_history['player_1'][-1]
         capture = False
 
         # Check for red capture
@@ -73,7 +74,7 @@ class MetricsCallbacks(DefaultCallbacks):
                        worker,
                        base_env,
                        policies,
-                       episode: Episode,
+                       episode: EpisodeV2,
                        env_index,
                        **kwargs):
         # Episode is done:

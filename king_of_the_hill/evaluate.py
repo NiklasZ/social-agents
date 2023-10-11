@@ -3,8 +3,9 @@ import time
 from typing import Dict, Any, List, Tuple
 import numpy as np
 import ray
-from gym.wrappers.monitoring.video_recorder import ImageEncoder
-from ray.rllib.algorithms.ppo import PPO
+from ray.rllib import Policy
+from ray.rllib.models.torch.recurrent_net import RecurrentNetwork
+
 from king_of_the_hill.activations import ActivationExtractor, NeuronScorer
 from king_of_the_hill.analysis.captures import get_hill_captures
 from king_of_the_hill.analysis.distances import get_distances
@@ -13,7 +14,7 @@ from king_of_the_hill.analysis.zapping import get_zaps
 from king_of_the_hill.arg_parser import get_evaluation_args
 from king_of_the_hill.helpers import get_trailing_number, to_player_name, get_world_rgb_bounding_box, find_hill_center, \
     get_positions
-from gym.wrappers import RecordVideo
+from gymnasium.wrappers import RecordVideo
 from datetime import datetime
 from king_of_the_hill.maps import PLAYABLE_MAPS
 from king_of_the_hill.wandb_api import get_api_key, download_evaluation_state, make_dir_if_not_exists
@@ -22,6 +23,7 @@ import os
 import glob
 import warnings
 import pickle
+import wandb
 
 # Ignoring deprecations because 9/10 times it is 3rd libraries complaining about each other.
 warnings.filterwarnings("ignore", category=DeprecationWarning)
@@ -44,6 +46,7 @@ def get_names(config: Dict, run_config: Dict) -> List[Tuple[str, str]]:
 def get_eval_path(run_config: Dict, timestamp: str = '') -> str:
     return f"evaluation/{run_config['eval_folder']}/{timestamp}".replace('//',
                                                                          '/')  # replace extra / if eval_folder is not used.
+
 
 def evaluate(run_config: Dict):
     # TODO use workers for evaluation
@@ -68,14 +71,13 @@ def evaluate(run_config: Dict):
                                                                                     run_id=run_id,
                                                                                     api_key=api_key,
                                                                                     checkpoint_folder=checkpoint_folder)
-        agent_path = f"{checkpoint_path}/{checkpoint_name}"
         agent_dicts.append({
                                'checkpoint_name': checkpoint_name,
                                'rllib_run_name': agent_run_config['rllib_run_name'],
                                'run_config': agent_run_config,
                                'config': agent_config,
                            } | policy_info)
-        agent_paths.append(agent_path)
+        agent_paths.append(checkpoint_path)
 
     model_names = {a_d['run_config']['model_name'] for a_d in agent_dicts}
     if len(model_names) != 1:
@@ -89,26 +91,19 @@ def evaluate(run_config: Dict):
                     eval_path=base_eval_path)
 
     ray.shutdown()
+    wandb.finish()
 
 
 def evaluate_agents(agent_paths: List[str],
                     agent_dicts: List[Dict],
                     eval_path: str):
-    # Restore agents
-    loaded_agents = {}
-    agents = []
-    # TODO we should try to save some memory by dropping unused policies from agent mappings
+    # Restore agent policies
+    agents: List[Policy] = []
     for agent_path, agent_dict in zip(agent_paths, agent_dicts):
-        # Often we have policies from the same agent play against each other.
-        # Instantiating the same policies multiple times is wasteful, so we check if the agent has already been loaded.
-        if agent_path in loaded_agents:
-            agents.append(loaded_agents[agent_path])
-        else:
-            agent = PPO(config=agent_dict['config'])
-            # If we have a lot of policies RLlib will dump a huge number of pickled policy files (.pkl) into the running directory.
-            agent.restore(agent_path)
-            agents.append(agent)
-            loaded_agents[agent_path] = agent
+        policy = Policy.from_checkpoint(f"{agent_path}/{agent_dict['policy_id']}")
+        # If we have a lot of policies RLlib will dump a huge number of pickled policy files (.pkl) into the running directory.
+        agents.append(policy)
+
 
     current_time = time.time()
     activations_names = agent_dicts[0]['run_config']['activations']
@@ -119,7 +114,7 @@ def evaluate_agents(agent_paths: List[str],
     recording_fps = agent_dicts[0]['run_config']['recording_fps']
     record_episodes = agent_dicts[0]['run_config']['record_episodes']
     record_observations = agent_dicts[0]['run_config']['record_observations']
-    episode_length = agent_dicts[0]['config']['horizon']
+    episode_length = agent_dicts[0]['config']['max_episode_steps']
     env_constructor = model_description['env_constructor']
     map_string = PLAYABLE_MAPS[agent_dicts[0]['run_config']['map_name']]['map']
     num_episodes = agent_dicts[0]['run_config']['episodes']
@@ -150,7 +145,7 @@ def evaluate_agents(agent_paths: List[str],
     video_path = f"{matchup_path}/videos"
     make_dir_if_not_exists(matchup_path)
     if record_episodes:
-        test_env = RecordVideo(test_env, video_path, video_length=episode_length, name_prefix='')
+        test_env = RecordVideo(test_env, video_path, video_length=episode_length, name_prefix='', disable_logger=True)
 
     # Evaluation metrics to track
     metrics = {
@@ -196,7 +191,10 @@ def evaluate_agents(agent_paths: List[str],
     for episode in range(num_episodes):
         print(f'==Episode {episode}==')
         done = False
-        obs = test_env.reset()
+        obs, _ = test_env.reset()
+
+        if record_episodes:
+            test_env.start_video_recorder()
 
         ep_rewards = []
         ep_actions = []
@@ -209,14 +207,15 @@ def evaluate_agents(agent_paths: List[str],
         ep_captures = []
 
         # If using RNN/LSTM, we need to track more information
-        if model_description['model_config']['use_lstm']:
+        if any(isinstance(agent.model, RecurrentNetwork) for agent in agents):
             prev_actions = {}
             states = {}
-            for player in player_names:
+            for agent,player in zip(agents,player_names):
                 # Initial hidden and cell state
-                states[player] = [np.zeros(model_description['model_config']['lstm_cell_size'], ) for _ in range(2)]
+                states[player] = agent.model.get_initial_state()
                 prev_actions[player] = np.zeros(1, dtype='int32')
 
+        # TODO observation recording is broken with the new gymnasium. It needs to be rewritten.
         if record_observations:
             observation_recorders = {player: ImageEncoder(
                 output_path=f"{video_path}/episode-{episode * 1000}-{player}.mp4",
@@ -236,11 +235,10 @@ def evaluate_agents(agent_paths: List[str],
                     neuron_scorer.set_current_player(player)
 
                 # If using RNN/LSTM we need to keep track of hidden states
-                if model_description['model_config']['use_lstm']:
-                    action, state_out, _ = agent.compute_single_action(observation=obs[player],
+                if isinstance(agent.model, RecurrentNetwork):
+                    action, state_out, _ = agent.compute_single_action(obs=obs[player],
                                                                        state=states[player],
-                                                                       prev_action=prev_actions[player],
-                                                                       policy_id=a_dict['policy_id'])
+                                                                       prev_action=prev_actions[player])
                     states[player] = state_out
                     prev_actions[player] = action
                 else:
@@ -249,7 +247,7 @@ def evaluate_agents(agent_paths: List[str],
                 log_verbose(f"{player}, {a_dict['policy_id']}, {action}", verbose)
                 actions[player] = action
 
-            obs, reward, dones, infos = test_env.step(actions)
+            obs, reward, terminated, truncated, infos = test_env.step(actions)
 
             deaths = {p: (np.max(ob) == 0).item() for p, ob in obs.items()}
 
@@ -263,7 +261,10 @@ def evaluate_agents(agent_paths: List[str],
             ep_distances.append(get_distances(infos, deaths))
             ep_captures.append(get_hill_captures(ep_rewards))
 
-            done = all(dones.values())
+            done = all(terminated.values()) or all(truncated.values())
+
+            if record_episodes:
+                test_env.video_recorder.capture_frame()
 
             if record_observations:
                 for player in obs:
@@ -314,7 +315,6 @@ def run_eval_and_clean(args: dict):
         policy_file_list = glob.glob(f'{cwd}/*.pkl')
         for path in policy_file_list:
             os.remove(path)
-
 
 if __name__ == "__main__":
     args = vars(get_evaluation_args())

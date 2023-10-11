@@ -5,10 +5,16 @@
 # - environment preprocessors
 
 from ml_collections.config_dict import config_dict
-from examples.rllib.utils import MeltingPotEnv
+from deepmind.examples.rllib.utils import MeltingPotEnv
+from deepmind.meltingpot.substrate import get_factory_from_config
+from king_of_the_hill.models.baseline_cnn_lstm import BaselineCNNLSTM
 from king_of_the_hill.preprocessor import FrameStacker, RGBObservationWrapper, FullRGBObservationWrapper
-from meltingpot.python.substrate import get_factory_from_config
 from ml_collections import config_dict
+from ray.rllib.models import ModelCatalog
+
+ModelCatalog.register_custom_model(
+    'baseline_cnn_lstm', BaselineCNNLSTM
+)
 
 
 def get_model(name: str):
@@ -52,6 +58,17 @@ def get_cnn_lstm_constructor():
 
 
 MODELS = {
+    'baseline_cnn_lstm': {
+        'env_constructor': get_cnn_lstm_constructor(),
+        'model_config': {
+            'custom_model': 'baseline_cnn_lstm',
+            '_disable_preprocessor_api': True,  # prevents flattening of the observation via preprocessor
+            'custom_model_config': {}
+        },
+        'notes': 'This is a baseline cnn-lstm with the same composition as the one described in the meltingpot paper:'
+                 'https://browse.arxiv.org/pdf/2211.13746.pdf'
+    },
+
     'basic_cnn_4x': {
         'env_constructor': get_cnn_env_constructor(4),
         'model_config': {

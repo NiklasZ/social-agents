@@ -85,7 +85,8 @@ def get_train_args():
     parser_new.add_argument('--cpus-per-worker', type=int, required=False, default=None,
                             help='how cpus to allocate per worker process')
     parser_new.add_argument('--num-gpus-per-worker', type=float, required=False, default=0,
-                            help='how many gpus to allocate per worker. Note: this can be fractional (e.g 0.1)')
+                            help='how many gpus to allocate per worker sampling the environment. '
+                                 'Note: this can be fractional (e.g 0.1)')
     parser_new.add_argument('--num-parallel-envs', type=int, required=False,
                             help='how many envs to sample in parallel. If not set, defaults to number of workers')
     parser_new.add_argument('--map-name', type=str, required=False, default='default',
@@ -95,7 +96,7 @@ def get_train_args():
                                  f"{', '.join(MODELS.keys())}")
     parser_new.add_argument('--multi-model', action=argparse.BooleanOptionalAction, required=False, default=False,
                             help='if set lets each agent have its own model instance for both'
-                                 ' value function and policy. '
+                                 ' value function and policy.'
                                  'Otherwise, uses a shared model instance for every agent')
     parser_new.add_argument('--generalising-self-play', action=argparse.BooleanOptionalAction, required=False,
                             default=False,

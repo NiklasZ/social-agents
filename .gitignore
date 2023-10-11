@@ -23,3 +23,4 @@ wandb
 /king_of_the_hill/evaluation/
 lab2d
 evaluation
+/.pytest_cache/

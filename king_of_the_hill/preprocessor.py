@@ -4,8 +4,10 @@ from collections import deque
 import numpy as np
 from ray.rllib.env import multi_agent_env
 
-from examples.rllib.utils import MeltingPotEnv
-from gym import spaces
+from gymnasium import spaces
+from ray.rllib.utils.typing import MultiAgentDict
+
+from deepmind.examples.rllib.utils import MeltingPotEnv
 
 
 # Not really a wrapper as it inherits from MeltingPotEnv rather than gym.wrappers, but this is necessary
@@ -17,6 +19,7 @@ class BaseWrapper(multi_agent_env.MultiAgentEnv):
         if not self._env:
             self._env = None
         super().__init__()
+        self.render_mode = 'rgb_array'
 
     def close(self):
         """See base class."""
@@ -26,19 +29,12 @@ class BaseWrapper(multi_agent_env.MultiAgentEnv):
         """Returns the underlying DM Lab2D environment."""
         return self._env
 
-    def render(self, mode: str) -> np.ndarray:
-        return self._env.render(mode=mode)
+    def render(self) -> np.ndarray:
+        return self._env.render()
 
     @property
     def metadata(self):
         return self._env.metadata
-
-
-# class RecolouringWrapper(BaseWrapper):
-#     def __init__(self,
-#                  env: MeltingPotEnv):
-#         self._env = env
-#         super().__init__()
 
 
 class FullRGBObservationWrapper(BaseWrapper):
@@ -66,22 +62,22 @@ class FullRGBObservationWrapper(BaseWrapper):
         self.action_space = self._env.action_space
         super().__init__()
 
-    def get_world_rgb(self, obs_dict: Union[dict, spaces.Dict]):
+    def get_world_rgb(self, obs_dict: Union[dict, spaces.Dict]) -> dict:
         # The WORLD.RGB doesn't exactly return the gameplay world. It actually pads it out into a larger image with
         # a lot of unused space. To avoid dealing with that, we crop to the gameplay world.
         return {
             p: obs_dict[p]['WORLD.RGB'][:self.world_height * self.sprite_size, -self.world_height * self.sprite_size:]
             for p in obs_dict.keys()}
 
-    def reset(self, *args, **kwargs):
+    def reset(self, *args, **kwargs) -> [MultiAgentDict, MultiAgentDict]:
         # modify obs
-        ob = self._env.reset()
-        return self.get_world_rgb(ob)
+        ob, info = self._env.reset()
+        return self.get_world_rgb(ob), info
 
     def step(self, *args, **kwargs):
         # modify obs
-        ob, reward, done, info = self._env.step(*args, **kwargs)
-        return self.get_world_rgb(ob), reward, done, info
+        ob, reward, terminated, truncated, info = self._env.step(*args, **kwargs)
+        return self.get_world_rgb(ob), reward, terminated, truncated, info
 
 
 class RGBObservationWrapper(BaseWrapper):
@@ -92,15 +88,15 @@ class RGBObservationWrapper(BaseWrapper):
         self.action_space = self._env.action_space
         super().__init__()
 
-    def reset(self, *args, **kwargs):
+    def reset(self, *args, **kwargs) -> [MultiAgentDict, MultiAgentDict]:
         # modify obs
-        ob = self._env.reset()
-        return get_rgb(ob)
+        ob, info = self._env.reset()
+        return get_rgb(ob), info
 
     def step(self, *args, **kwargs):
         # modify obs
-        ob, reward, done, info = self._env.step(*args, **kwargs)
-        return get_rgb(ob), reward, done, ob | info
+        ob, reward, terminated, truncated, info = self._env.step(*args, **kwargs)
+        return get_rgb(ob), reward, terminated, truncated, ob | info
 
 
 def get_rgb(obs_dict: Union[dict, spaces.Dict]):
@@ -134,18 +130,18 @@ class FrameStacker(BaseWrapper):
 
     def reset(self, *args, **kwargs):
         # modify obs
-        obs = self._env.reset()
+        obs, info = self._env.reset()
         for p in obs.keys():  # iterate players
             for _ in range(self.k):  # set each frame to be first observation
                 self.frames[p].append(obs[p])
-        return self._stack_obs()
+        return self._stack_obs(), info
 
     def step(self, *args, **kwargs):
         # modify obs
-        obs, reward, done, info = self._env.step(*args, **kwargs)
+        obs, reward, terminated, truncated, info = self._env.step(*args, **kwargs)
         for p in obs.keys():  # iterate players
             self.frames[p].append(obs[p])
-        return self._stack_obs(), reward, done, info
+        return self._stack_obs(), reward, terminated, truncated, info
 
     def _stack_obs(self):
         return {p: np.concatenate(self.frames[p], axis=2) for p in self.frames.keys()}

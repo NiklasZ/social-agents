@@ -16,10 +16,10 @@ from zipfile import ZipFile
 import numpy as np
 import urllib
 from ray import logger
+from ray.air.integrations.wandb import WandbLoggerCallback
 from ray.tune.stopper import Stopper
 from ray.tune import Trainable
 from ray.tune.trainable.function_trainable import FunctionTrainable
-from ray.tune.integration.wandb import WandbLoggerCallback
 from ray.tune.logger import LoggerCallback, Logger
 from ray.tune.utils import flatten_dict
 from ray.tune.experiment.trial import Trial
@@ -223,7 +223,7 @@ class _WandbLoggingProcess(Process):
             if item_type == _QueueItem.END:
                 break
             elif item_type == _QueueItem.CHECKPOINT:
-                self._handle_checkpoint(item_content)
+                self._handle_checkpoint(*item_content)
             else:
                 log, config_update = self._handle_result(item_content)
                 try:
@@ -253,37 +253,17 @@ class _WandbLoggingProcess(Process):
         config_update.pop("callbacks", None)  # Remove callbacks
         return log, config_update
 
-    def _handle_checkpoint(self, checkpoint_dir: str):
-        run_dir = os.path.dirname(checkpoint_dir)
-        run_folder_name = os.path.basename(run_dir)
-        all_runs_dir = os.path.dirname(run_dir)
-
-        # Remove old zipped checkpoints so they aren't added to the archives
-        if os.path.exists(f'{checkpoint_dir}.zip'):
-            os.remove(f'{checkpoint_dir}.zip')
-        shutil.make_archive(checkpoint_dir, 'zip', root_dir=checkpoint_dir)
-
-        # Save training state data
-        with ZipFile(f'{all_runs_dir}.zip', 'w') as myzip:
-            for f in [d for d in os.listdir(all_runs_dir) if os.path.isfile(f'{all_runs_dir}/{d}') and '.zip' not in d]:
-                myzip.write(f'{all_runs_dir}/{f}', arcname=f)
-            for f in [d for d in os.listdir(run_dir) if os.path.isfile(f'{run_dir}/{d}') and '.zip' not in d]:
-                myzip.write(f'{run_dir}/{f}', arcname=f'{run_folder_name}/{f}')
-
-        wandb.run.save(f'{all_runs_dir}.zip', policy='now')
+    def _handle_checkpoint(self, checkpoint_dir: str, training_iteration: int):
+        shutil.make_archive(checkpoint_dir, 'zip', root_dir=f'{checkpoint_dir}/policies')
+        # We rename the checkpoint to match the training iteration as that makes them easier to distinguish later.
+        checkpoint_parent_dir = os.path.dirname(f'{checkpoint_dir}.zip')
+        new_checkpoint_dir = f'{checkpoint_parent_dir}/checkpoint_{training_iteration:06d}.zip'
+        os.rename(f'{checkpoint_dir}.zip', new_checkpoint_dir)
 
         # Save checkpoint model data
-        wandb.run.save(f'{checkpoint_dir}.zip', policy='now')
+        wandb.run.save(new_checkpoint_dir, policy='now')
 
-        print('Synced rllib state to wandb')
-
-        # This artifact approach is nice, but not practical as the saved model isn't comprehensible to wandb anyway.
-        # Will save the model as basic files instead
-        # artifact = wandb.Artifact(name=f"checkpoint_{self._trial_name}", type="model")
-        # checkpoint_folder = os.path.dirname(checkpoint_path)
-        # artifact.add_dir(checkpoint_folder)
-        # wandb.log_artifact(artifact)
-
+        print('Synced rllib policies checkpoint to wandb')
 
 class AnotherWandbLoggerCallback(LoggerCallback):
     """WandbLoggerCallback
@@ -449,7 +429,7 @@ class AnotherWandbLoggerCallback(LoggerCallback):
     def log_trial_save(self, trial: "Trial"):
         if self.save_checkpoints and trial.checkpoint:
             self._trial_queues[trial].put(
-                (_QueueItem.CHECKPOINT, trial.checkpoint.dir_or_data)
+                (_QueueItem.CHECKPOINT, (trial.checkpoint.path, trial.last_result['training_iteration']))
             )
 
     def __del__(self):

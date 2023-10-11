@@ -5,6 +5,8 @@ from ray.rllib.algorithms.ppo import PPO
 from ray.rllib.policy.policy import PolicySpec
 from ray.tune.registry import register_env
 import json
+
+from deepmind.meltingpot.configs.substrates.paintball__king_of_the_hill import get_config
 from king_of_the_hill.arg_parser import default_env_settings
 from king_of_the_hill.callbacks.pooling_self_play import PoolingSelfPlayCallback
 from king_of_the_hill.custom_metrics import MetricsCallbacks
@@ -13,9 +15,9 @@ from king_of_the_hill.helpers import get_trailing_number
 from king_of_the_hill.models.models import get_model
 from king_of_the_hill.maps import PLAYABLE_MAPS
 from king_of_the_hill.observation_filters import RGBFilter
-from meltingpot.python.configs.substrates.paintball__king_of_the_hill import get_config
 
 
+# from meltingpot.python.configs.substrates.paintball__king_of_the_hill import get_config
 def get_alg_config(run_config: Dict, training=True) -> Dict:
     # Support for generating evaluation configs for older agents whose configs may not have these new fields.
     if not training:
@@ -23,7 +25,7 @@ def get_alg_config(run_config: Dict, training=True) -> Dict:
                           'framework': 'tf2',
                           'env_settings': json.loads(default_env_settings.replace("\'", "\"")),
                           'num_gpus_per_worker': 0,
-                          'obs_filter':  'NoFilter',
+                          'obs_filter': 'NoFilter',
                           'pooled_self_play': None}
         run_config = default_values | run_config
 
@@ -32,6 +34,14 @@ def get_alg_config(run_config: Dict, training=True) -> Dict:
     config = copy.deepcopy(
         ray.rllib.algorithms.ppo.PPOConfig().to_dict()
     )
+
+    # The RL Module API is a bleeding edge experimental API that was introduced with Ray 2.6.0.
+    # Using it restricts the available algorithms and models. For those reasons it is disabled
+    # until the API is more mature. See https://docs.ray.io/en/latest/rllib/rllib-rlmodule.html
+    # Also it seems that checkpoints generated via this API are insanely large (1 GB, compared to 20 MB)
+    # so until that is fixed, it's not worth using.
+    config['_enable_rl_module_api'] = False
+    config['_enable_learner_api'] = False
 
     # Choose a map to play
     map_name = run_config['map_name']
@@ -47,6 +57,10 @@ def get_alg_config(run_config: Dict, training=True) -> Dict:
                             play_map=PLAYABLE_MAPS[map_name]['map'],
                             map_dimensions=PLAYABLE_MAPS[map_name]['dimensions'],
                             env_settings=run_config['env_settings'])
+
+    # Do not preprocess observations and provide from environment as is.
+    config['preprocessor_pref'] = None
+
     config['env_config'] = env_config
     env_constructor = model_description['env_constructor']
     # Register env constructor and name
@@ -98,8 +112,7 @@ def get_alg_config(run_config: Dict, training=True) -> Dict:
     config['log_level'] = 'DEBUG' if run_config['debug_mode'] else 'ERROR'
     config['num_workers'] = run_config['num_workers']
     config['num_gpus_per_worker'] = run_config['num_gpus_per_worker']
-    # After n steps, force end episode
-    config['horizon'] = config['env_config'].lab2d_settings['maxEpisodeLengthFrames']
+    config['max_episode_steps'] = config['env_config'].lab2d_settings['maxEpisodeLengthFrames']
     # each unroll happens exactly over one episode
     # ensuring that we have a full episode allows a reward to be calculated
     config['batch_mode'] = 'complete_episodes'
@@ -119,8 +132,6 @@ def get_alg_config(run_config: Dict, training=True) -> Dict:
     # fix the batch size for a training pass
     # Default: 128
     config['sgd_minibatch_size'] = run_config['sgd_minibatch_size']
-    # Default: False
-    config['no_done_at_end'] = False
     # Info: If False, each agents trajectory is expected to have
     # maximum one done=True in the last step of the trajectory.
     # If no_done_at_end = True, environment is not resetted
@@ -140,6 +151,7 @@ def get_alg_config(run_config: Dict, training=True) -> Dict:
     config['framework'] = run_config['framework']  # set tensorflow or torch framework
     config['num_cpus_per_worker'] = run_config['cpus_per_worker']
 
+
     if run_config['framework'] == 'tf2':
         # Speeds up tf evaluation, but makes debugging difficult
         config['eager_tracing'] = not run_config['debug_mode']
@@ -150,7 +162,6 @@ def get_alg_config(run_config: Dict, training=True) -> Dict:
     if run_config['pooled_self_play']:
         config['evaluation_num_workers'] = run_config['pooled_self_play']['evaluation_num_workers']
         config['evaluation_interval'] = run_config['pooled_self_play']['evaluation_interval']
-
 
     config = {k: v for k, v in config.items() if v is not None}  # filter out None values
     return config

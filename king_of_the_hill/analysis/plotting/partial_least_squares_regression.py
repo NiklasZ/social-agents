@@ -9,8 +9,9 @@ from sklearn.metrics import explained_variance_score, r2_score
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 
-from king_of_the_hill.analysis.plotting.distances import get_relative_player_positions
+# from king_of_the_hill.analysis.plotting.distances import get_relative_player_positions
 from king_of_the_hill.analysis.plotting.filters import filter_by_deaths, filter_by_mutual_vision
+from king_of_the_hill.analysis.plotting.helpers import get_relative_player_positions
 from king_of_the_hill.wandb_api import make_dir_if_not_exists
 
 
