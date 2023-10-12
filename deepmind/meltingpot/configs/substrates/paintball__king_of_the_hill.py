@@ -64,6 +64,7 @@ IWQQQ,QQQQ,Q,QQQQ,QQQWI
 IWWWWWWWWWWWWWWWWWWWWWI
 IIIIIIIIIIIIIIIIIIIIIII
 """
+SPRITE_SIZE = 8
 
 # `prefab` determines which prefab game object to use for each `char` in the
 # ascii map.
@@ -775,7 +776,6 @@ def create_avatar_objects(num_players,
 def get_config(
         # factory=create_lab2d_settings,
         play_map=DEFAULT_ASCII_MAP,
-        map_dimensions=(23, 23),
         num_players=8,
         fixed_teams=False,
         env_settings: Optional[Dict[str, Any]] = None):
@@ -803,9 +803,6 @@ def get_config(
         "WORLD.RGB",
     ]
 
-    world_height = 8 * map_dimensions[0]
-    world_width = 8 * map_dimensions[1]
-
     # The specs of the environment (from a single-agent perspective).
     config.action_spec = specs.action(len(ACTION_SET))
     config.timestep_spec = specs.timestep({
@@ -814,7 +811,7 @@ def get_config(
         # Debug only (do not use the following observations in policies).
         "POSITION": specs.OBSERVATION["POSITION"],
         "ORIENTATION": specs.OBSERVATION["ORIENTATION"],
-        "WORLD.RGB": specs.rgb(world_height, world_width),
+        "WORLD.RGB": specs.world_rgb(play_map, SPRITE_SIZE),
     })
 
     # The roles assigned to each player.
@@ -826,8 +823,9 @@ def get_config(
     config.fixed_teams = fixed_teams
 
     config.env_settings = env_settings or {}
+    config.roles = ("default",) * num_players
 
-    config.lab2d_settings = build([], config)
+    config.lab2d_settings = build(config.roles, config)
     config.lab2d_settings_builder = build
 
     return config
@@ -842,7 +840,7 @@ def build(roles: Sequence[str],
         levelDirectory="meltingpot/lua/levels",
         numPlayers=config.num_players,
         maxEpisodeLengthFrames=1000,
-        spriteSize=8,
+        spriteSize=SPRITE_SIZE,
         topology="BOUNDED",  # Choose from ["BOUNDED", "TORUS"],
         simulation={
             "map": config.play_map,

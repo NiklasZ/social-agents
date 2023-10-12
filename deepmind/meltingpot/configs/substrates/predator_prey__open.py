@@ -89,24 +89,33 @@ CHAR_PREFAB_MAP = {
 }
 
 
-def get_config():
-  """Default configuration."""
-  config = base_config.get_config()
+def get_config(num_players=13,
+               play_map=str,
+               env_settings=None):
+    """Default configuration."""
+    config = base_config.get_config()
 
-  # Override the map layout settings.
-  config.layout = config_dict.ConfigDict()
-  config.layout.ascii_map = ASCII_MAP
-  config.layout.char_prefab_map = CHAR_PREFAB_MAP
+    # Override the map layout settings.
+    config.layout = config_dict.ConfigDict()
+    config.layout.char_prefab_map = CHAR_PREFAB_MAP
 
-  # The specs of the environment (from a single-agent perspective).
-  config.timestep_spec = specs.timestep({
-      "RGB": specs.OBSERVATION["RGB"],
-      "STAMINA": specs.float64(),
-      # Debug only (do not use the following observations in policies).
-      "WORLD.RGB": specs.rgb(152, 184),
-  })
+    # The specs of the environment (from a single-agent perspective).
+    config.timestep_spec = specs.timestep({
+        "RGB": specs.OBSERVATION["RGB"],
+        "STAMINA": specs.float64(),
+        # Debug only (do not use the following observations in policies).
+        "WORLD.RGB": specs.rgb(152, 184),
+    })
 
-  # The roles assigned to each player.
-  config.default_player_roles = ("predator",) * 3 + ("prey",) * 10
+    # The roles assigned to each player.
+    config.default_player_roles = ("predator",) * 3 + ("prey",) * 10
 
-  return config
+    # CUSTOM ADDITIONS
+    config.roles = (("predator",) * (num_players // 2) +
+                    ("prey",) * (num_players // 2 + num_players % 2))
+    config.num_players = num_players
+    config.layout.ascii_map = play_map
+    config.lab2d_settings_builder = build
+    config.lab2d_settings = build(config.roles, config)
+
+    return config

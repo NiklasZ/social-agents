@@ -1,0 +1,170 @@
+import copy
+from typing import Dict
+import ray
+from ray.rllib.algorithms.callbacks import make_multi_callbacks
+from ray.rllib.algorithms.ppo import PPO
+from ray.rllib.policy.policy import PolicySpec
+from ray.tune.registry import register_env
+
+from deepmind.meltingpot.configs.substrates.paintball__king_of_the_hill import get_config as get_config_koth
+from deepmind.meltingpot.configs.substrates.allelopathic_harvest__open import get_config as get_config_allelopathic_open
+from deepmind.meltingpot.configs.substrates.predator_prey__open import get_config as get_config_predator_prey_open
+from environment.configs import PLAYABLE_MAPS, ENV_TRAINING_METRICS_CALLBACKS
+from models.model_catalog import get_model
+from training.callbacks.enhanced_self_play import EnhancedSelfPlayCallback
+from training.callbacks.pooling_self_play import PoolingSelfPlayCallback
+from utils.helpers import get_trailing_number
+
+melting_pot_config_funcs = {
+    'king_of_the_hill': get_config_koth,
+    'allelopathic_harvest_open': get_config_allelopathic_open,
+    'predator_and_prey_open': get_config_predator_prey_open
+}
+
+
+# from meltingpot.python.configs.substrates.paintball__king_of_the_hill import get_config
+def get_alg_config(run_config: Dict, training=True) -> Dict:
+    # Support for generating evaluation configs for older agents whose configs may not have these new fields.
+    # if not training:
+    #     default_values = {'episodes_per_training_iteration': 4,
+    #                       'framework': 'tf2',
+    #                       'env_settings': json.loads(default_env_settings.replace("\'", "\"")),
+    #                       'num_gpus_per_worker': 0,
+    #                       'obs_filter': 'NoFilter',
+    #                       'pooled_self_play': None}
+    #     run_config = default_values | run_config
+
+    # The agent algorithm to use
+    # PPO
+    config = copy.deepcopy(
+        ray.rllib.algorithms.ppo.PPOConfig().to_dict()
+    )
+
+    # The RL Module API is a bleeding edge experimental API that was introduced with Ray 2.6.0.
+    # Using it restricts the available algorithms and models. For those reasons it is disabled
+    # until the API is more mature. See https://docs.ray.io/en/latest/rllib/rllib-rlmodule.html
+    # Also it seems that checkpoints generated via this API are insanely large (1 GB, compared to 20 MB)
+    # so until that is fixed, it's not worth using.
+    config['_enable_rl_module_api'] = False
+    config['_enable_learner_api'] = False
+
+    # Choose a map to play
+    map_name = run_config['map_name']
+    if map_name not in PLAYABLE_MAPS[run_config['env']]:
+        raise Exception(f"Map named {map_name} not found."
+                        f" Available maps are: {', '.join(list(PLAYABLE_MAPS.keys()))}")
+    else:
+        play_map = PLAYABLE_MAPS[run_config['env']][map_name]
+    # Get model description
+    model_description = get_model(run_config['model_name'])
+
+    # Set environment config
+    env_config = melting_pot_config_funcs[run_config['env']](
+        num_players=run_config['num_agents'],
+        play_map=play_map['map'],
+        env_settings=run_config['env_settings'])
+
+    # Do not preprocess observations and provide from environment as is.
+    config['preprocessor_pref'] = None
+
+    config['env_config'] = env_config
+    env_constructor = model_description['env_constructor']
+    # Register env constructor and name
+    register_env('meltingpot', env_constructor)
+    config['env'] = 'meltingpot'
+
+    # Extract space dimensions
+    test_env = env_constructor(config['env_config'])
+
+    # Specify policy
+    # Every agent gets a separate policy
+    if run_config['multi_model']:
+        policies = {f'policy{i}': PolicySpec(
+            policy_class=None,  # use default policy
+            observation_space=test_env.observation_space[f'player_{i}'],
+            action_space=test_env.action_space[f'player_{i}'],
+            config={},
+        ) for i in range(0, run_config['num_agents'])}
+        config['multiagent'] = {
+            'policies': policies,
+            'policy_mapping_fn': lambda agent_id, episode, worker, **kwargs: f'policy{get_trailing_number(agent_id)}',
+            'count_steps_by': 'env_steps',
+        }
+    # Every agent shares the same policy
+    else:
+        config['multiagent'] = {
+            'policies': {
+                'av':
+                    PolicySpec(
+                        policy_class=None,  # use default policy
+                        observation_space=test_env.observation_space['player_0'],
+                        action_space=test_env.action_space['player_0'],
+                        config={},
+                    ),
+            },
+            'policy_mapping_fn': lambda agent_id, episode, worker, **kwargs: 'av',
+            'count_steps_by': 'env_steps',
+        }
+
+    # Set number of GPUs to use
+    config['num_gpus'] = run_config['num_gpus']
+    # Set log level ERROR, INFO or DEBUG
+    config['log_level'] = 'DEBUG' if run_config['debug_mode'] else 'ERROR'
+    config['num_workers'] = run_config['num_workers']
+    config['num_gpus_per_worker'] = run_config['num_gpus_per_worker']
+    config['max_episode_steps'] = config['env_config'].lab2d_settings['maxEpisodeLengthFrames']
+    # each unroll happens exactly over one episode
+    # ensuring that we have a full episode allows a reward to be calculated
+    config['batch_mode'] = 'complete_episodes'
+    # Fragment length, in this case the number of steps
+    # collected at once from each worker and for each agent!
+    # Ignored when 'batch_mode' = 'complete_episodes'
+    config['rollout_fragment_length'] = 1
+
+    episodes_per_batch = run_config['episodes_per_training_iteration'] // run_config['num_workers']
+    check_val = run_config['episodes_per_training_iteration'] / run_config['num_workers']
+    assert episodes_per_batch == check_val, f"Number of episodes per batch ({run_config['episodes_per_training_iteration']}) " \
+                                            f"needs to be divisible by number of workers ({run_config['num_workers']})"
+
+    # Controls total batch size of a training iteration.
+    config['train_batch_size'] = config['env_config'].lab2d_settings[
+                                     'maxEpisodeLengthFrames'] * episodes_per_batch
+    # fix the batch size for a training pass
+    # Default: 128
+    config['sgd_minibatch_size'] = run_config['sgd_minibatch_size']
+    # Info: If False, each agents trajectory is expected to have
+    # maximum one done=True in the last step of the trajectory.
+    # If no_done_at_end = True, environment is not resetted
+    # when dones[__all__]= True.
+
+    # Set model config
+    config['model'] = model_description['model_config']
+
+    # Choose whether to add callbacks that collect more training metrics
+    chosen_callbacks = []
+    if ENV_TRAINING_METRICS_CALLBACKS[run_config['env']]:
+        chosen_callbacks.append(ENV_TRAINING_METRICS_CALLBACKS[run_config['env']])
+    # Choose whether to add callbacks that impact opponent selection for training
+    if run_config['generalising_self_play'] and training:
+        chosen_callbacks.append(EnhancedSelfPlayCallback)
+    elif run_config['pooled_self_play'] and training:
+        chosen_callbacks.append(PoolingSelfPlayCallback)
+
+    config['callbacks'] = make_multi_callbacks(chosen_callbacks)
+
+    config['framework'] = run_config['framework']  # set tensorflow or torch framework
+    config['num_cpus_per_worker'] = run_config['cpus_per_worker']
+
+    if run_config['framework'] == 'tf2':
+        # Speeds up tf evaluation, but makes debugging difficult
+        config['eager_tracing'] = not run_config['debug_mode']
+
+    # Sets the number of environments to explore simultaneously. Not Sure if it is beneficial to change this.
+    config['num_envs_per_worker'] = run_config['num_parallel_envs'] // run_config['num_workers']
+
+    if run_config['pooled_self_play']:
+        config['evaluation_num_workers'] = run_config['pooled_self_play']['evaluation_num_workers']
+        config['evaluation_interval'] = run_config['pooled_self_play']['evaluation_interval']
+
+    config = {k: v for k, v in config.items() if v is not None}  # filter out None values
+    return config

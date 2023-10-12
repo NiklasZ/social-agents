@@ -4,23 +4,9 @@
 # Ignore common venv names.
 /*venv/
 
-# Ignore setup files created by install.sh.
-*.egg-info
-/build/
-/lab2d/
-
-# Ignore saved models.
-/examples/results/
-/meltingpot/assets/
-
 /.idea
-/king_of_the_hill/wandb_api_key.txt
-/king_of_the_hill/results
-/king_of_the_hill/ray_results
 .envrc
 wandb
-/king_of_the_hill/videos/
-/king_of_the_hill/evaluation/
-lab2d
-evaluation
 /.pytest_cache/
+/evaluation/eval_games/
+/analysis/.ipynb_checkpoints/
