@@ -1,10 +1,8 @@
 from typing import List, Optional, Dict
 from ray.rllib import BaseEnv, Policy
 from ray.rllib.algorithms.callbacks import DefaultCallbacks
-from ray.rllib.evaluation import Episode
 from ray.rllib.evaluation.episode_v2 import EpisodeV2
 from ray.rllib.utils.typing import PolicyID
-from ray.tune import Callback
 
 """
 Collects extra metrics during episode. A lot of these rely on the reward structure of the environment.

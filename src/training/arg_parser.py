@@ -2,8 +2,9 @@ import argparse
 import json
 from time import time
 
-from environment.configs import DEFAULT_ENV_SETTINGS, ENV_ALIASES
-from models.model_catalog import MODELS
+from src.environment.configs import DEFAULT_ENV_SETTINGS, ENV_ALIASES, MELTING_POT_CONFIG_FUNCS
+from src.environment.helpers import validate_environment_roles
+from src.models.model_catalog import MODELS
 
 default_pooled_self_play_settings = json.dumps(
     {'evaluation_num_workers': 8,
@@ -59,8 +60,12 @@ def get_train_args():
                             help='the name of this training run')
     parser_new.add_argument('--group-name', type=str, required=False, default=None,
                             help='name of the group of runs this one belongs to')
-    parser_new.add_argument('--num-agents', type=int, required=False, default=2,
-                            help='number of agents that should play in the environment')
+    # parser_new.add_argument('--num-agents', type=int, required=False, default=2,
+    #                         help='number of agents that should play in the environment')
+    parser_new.add_argument('--agent-roles', type=str, nargs='+', required=True, default=None,
+                            help='List of strings describing the roles that the agents in the environment. '
+                                 'Note that the number of roles listed also dictates how many agents '
+                                 'will play in the environment overall.')
     parser_new.add_argument('--sgd-minibatch-size', type=int, required=False, default=128,
                             help='How many sampled environment steps to use per gradient descent training batch.')
     parser_new.add_argument('--training-iterations', type=int, required=False, default=10000,
@@ -137,6 +142,9 @@ def get_train_args():
             args.group_name = args.map_name
 
         args.group_name = f'{ENV_ALIASES[args.env]}-{args.group_name}'
+
+        # Check role definitions are valid
+        validate_environment_roles(args.env, args.agent_roles)
 
         if not args.num_parallel_envs:
             args.num_parallel_envs = args.num_workers

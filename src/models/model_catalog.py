@@ -5,13 +5,13 @@
 # - environment preprocessors
 
 from ml_collections.config_dict import config_dict
-from deepmind.examples.rllib.utils import MeltingPotEnv
-from deepmind.meltingpot.substrate import get_factory_from_config
+from src.deepmind.examples.rllib.utils import MeltingPotEnv
+from src.deepmind.meltingpot.substrate import get_factory_from_config
 from ml_collections import config_dict
 from ray.rllib.models import ModelCatalog
 
-from environment.wrappers import RGBObservationWrapper, FrameStacker, FullRGBObservationWrapper
-from models.baseline_cnn_lstm import BaselineCNNLSTM
+from src.environment.wrappers import RGBObservationWrapper, FrameStacker, FullRGBObservationWrapper
+from src.models.baseline_cnn_lstm import BaselineCNNLSTM
 
 ModelCatalog.register_custom_model(
     'baseline_cnn_lstm', BaselineCNNLSTM

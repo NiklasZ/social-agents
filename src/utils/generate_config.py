@@ -6,23 +6,13 @@ from ray.rllib.algorithms.ppo import PPO
 from ray.rllib.policy.policy import PolicySpec
 from ray.tune.registry import register_env
 
-from deepmind.meltingpot.configs.substrates.paintball__king_of_the_hill import get_config as get_config_koth
-from deepmind.meltingpot.configs.substrates.allelopathic_harvest__open import get_config as get_config_allelopathic_open
-from deepmind.meltingpot.configs.substrates.predator_prey__open import get_config as get_config_predator_prey_open
-from environment.configs import PLAYABLE_MAPS, ENV_TRAINING_METRICS_CALLBACKS
-from models.model_catalog import get_model
-from training.callbacks.enhanced_self_play import EnhancedSelfPlayCallback
-from training.callbacks.pooling_self_play import PoolingSelfPlayCallback
-from utils.helpers import get_trailing_number
-
-melting_pot_config_funcs = {
-    'king_of_the_hill': get_config_koth,
-    'allelopathic_harvest_open': get_config_allelopathic_open,
-    'predator_and_prey_open': get_config_predator_prey_open
-}
+from src.environment.configs import PLAYABLE_MAPS, ENV_TRAINING_METRICS_CALLBACKS, MELTING_POT_CONFIG_FUNCS
+from src.models.model_catalog import get_model
+from src.training.callbacks.enhanced_self_play import EnhancedSelfPlayCallback
+from src.training.callbacks.pooling_self_play import PoolingSelfPlayCallback
+from src.utils.helpers import get_trailing_number
 
 
-# from meltingpot.python.configs.substrates.paintball__king_of_the_hill import get_config
 def get_alg_config(run_config: Dict, training=True) -> Dict:
     # Support for generating evaluation configs for older agents whose configs may not have these new fields.
     # if not training:
@@ -59,8 +49,8 @@ def get_alg_config(run_config: Dict, training=True) -> Dict:
     model_description = get_model(run_config['model_name'])
 
     # Set environment config
-    env_config = melting_pot_config_funcs[run_config['env']](
-        num_players=run_config['num_agents'],
+    env_config = MELTING_POT_CONFIG_FUNCS[run_config['env']](
+        roles=run_config['agent_roles'],
         play_map=play_map['map'],
         env_settings=run_config['env_settings'])
 
@@ -84,7 +74,7 @@ def get_alg_config(run_config: Dict, training=True) -> Dict:
             observation_space=test_env.observation_space[f'player_{i}'],
             action_space=test_env.action_space[f'player_{i}'],
             config={},
-        ) for i in range(0, run_config['num_agents'])}
+        ) for i in range(0, len(run_config['agent_roles']))}
         config['multiagent'] = {
             'policies': policies,
             'policy_mapping_fn': lambda agent_id, episode, worker, **kwargs: f'policy{get_trailing_number(agent_id)}',

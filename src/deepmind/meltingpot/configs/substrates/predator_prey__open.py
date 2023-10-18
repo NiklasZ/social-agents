@@ -89,7 +89,7 @@ CHAR_PREFAB_MAP = {
 }
 
 
-def get_config(num_players=13,
+def get_config(roles=None,
                play_map=str,
                env_settings=None):
     """Default configuration."""
@@ -111,9 +111,8 @@ def get_config(num_players=13,
     config.default_player_roles = ("predator",) * 3 + ("prey",) * 10
 
     # CUSTOM ADDITIONS
-    config.roles = (("predator",) * (num_players // 2) +
-                    ("prey",) * (num_players // 2 + num_players % 2))
-    config.num_players = num_players
+    config.roles = roles or config.default_player_roles
+    config.num_players = len(config.roles)
     config.layout.ascii_map = play_map
     config.lab2d_settings_builder = build
     config.lab2d_settings = build(config.roles, config)

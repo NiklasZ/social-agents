@@ -776,7 +776,7 @@ def create_avatar_objects(num_players,
 def get_config(
         # factory=create_lab2d_settings,
         play_map=DEFAULT_ASCII_MAP,
-        num_players=8,
+        roles=None,
         fixed_teams=False,
         env_settings: Optional[Dict[str, Any]] = None):
     """Default configuration for training on the king_of_the_hill level."""
@@ -787,7 +787,6 @@ def get_config(
     # all negative rewwards come from the opposing team being in control of the
     # hill. The default reward structure is zero sum.
     config.shaping_kwargs = None
-    config.num_players = num_players
 
     # Action set configuration.
     config.action_set = ACTION_SET
@@ -823,7 +822,8 @@ def get_config(
     config.fixed_teams = fixed_teams
 
     config.env_settings = env_settings or {}
-    config.roles = ("default",) * num_players
+    config.roles = roles or config.default_player_roles
+    config.num_players = len(config.roles)
 
     config.lab2d_settings = build(config.roles, config)
     config.lab2d_settings_builder = build

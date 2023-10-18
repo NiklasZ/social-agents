@@ -1,14 +1,12 @@
 import numpy as np
 import ray
-from ray.air.integrations.wandb import WandbLoggerCallback
 from ray.tune import tune
 from arg_parser import get_train_args
-from training.callbacks.enhanced_self_play import PolicyScorer
-from training.callbacks.pooling_self_play import PolicyPoolManager
-from training.callbacks.trial_state_logger import PrintResultCallback
-from training.wandb_logger_v2 import AnotherWandbLoggerCallback
-from utils.generate_config import get_alg_config
-from utils.wandb_api import download_train_state
+from src.training.callbacks.enhanced_self_play import PolicyScorer
+from src.training.callbacks.pooling_self_play import PolicyPoolManager
+from src.training.callbacks.trial_state_logger import PrintResultCallback
+from src.training.wandb_logger_v2 import AnotherWandbLoggerCallback
+from src.utils.generate_config import get_alg_config
 
 
 # TODO make wandb optional

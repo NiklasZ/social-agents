@@ -14,14 +14,13 @@ import warnings
 import pickle
 import wandb
 
-from environment.king_of_the_hill.evaluation_metrics import get_distances
-from environment.configs import PLAYABLE_MAPS, ENV_EVAL_METRIC_FUNCS
-from environment.wrappers import RenderCropper
-from evaluation.activations import ActivationExtractor, NeuronScorer
-from evaluation.arg_parser import get_evaluation_args
-from models.model_catalog import MODELS
-from utils.helpers import get_trailing_number, to_player_name, get_world_rgb_bounding_box
-from utils.wandb_api import download_evaluation_state, make_dir_if_not_exists
+from src.environment.configs import PLAYABLE_MAPS, ENV_EVAL_METRIC_FUNCS, MELTING_POT_CONFIG_FUNCS
+from src.environment.wrappers import RenderCropper
+from src.evaluation.activations import ActivationExtractor, NeuronScorer
+from src.evaluation.arg_parser import get_evaluation_args
+from src.models.model_catalog import MODELS
+from src.utils.helpers import get_trailing_number, to_player_name, get_world_rgb_bounding_box
+from src.utils.wandb_api import download_evaluation_state, make_dir_if_not_exists
 
 # Ignoring deprecations because 9/10 times it is 3rd libraries complaining about each other.
 warnings.filterwarnings("ignore", category=DeprecationWarning)
@@ -43,7 +42,7 @@ def get_names(config: Dict, run_config: Dict) -> List[Tuple[str, str]]:
 
 def get_eval_path(run_config: Dict, env_name: str, timestamp: str = '') -> str:
     # replace extra / if eval_folder is not used.
-    return f"evaluation/eval_games/{env_name}/{run_config['eval_folder']}/{timestamp}".replace('//', '/')
+    return f"eval_games/{env_name}/{run_config['eval_folder']}/{timestamp}".replace('//', '/')
 
 
 def evaluate(run_config: Dict):
@@ -109,7 +108,17 @@ def evaluate_agents(agent_paths: List[str],
     run_config = agent_dicts[0]['run_config']
     activations_names = run_config['activations']
     score_activations = run_config['score_for_dormant_activations']
-    env_config = agent_dicts[0]['config']['env_config']
+
+    # We regenerate the environment configuration here as both agents may not have been trained on the exact same
+    # environment. We use the map and extra settings of the first agent, but the roles are obtained from each
+    # agent's actual role they had during training.
+    map_string = PLAYABLE_MAPS[run_config['env']][run_config['map_name']]['map']
+    agent_roles = [a['run_config']['agent_roles'][get_trailing_number(a['policy_id'])] for a in agent_dicts]
+    env_config = MELTING_POT_CONFIG_FUNCS[run_config['env']](
+        roles=agent_roles,
+        play_map=map_string,
+        env_settings=run_config['env_settings'])
+
     # Assume agents have the same model for now
     model_description = MODELS[agent_dicts[0]['run_config']['model_name']]
     recording_fps = run_config['recording_fps']
@@ -117,7 +126,6 @@ def evaluate_agents(agent_paths: List[str],
     record_observations = run_config['record_observations']
     episode_length = agent_dicts[0]['config']['max_episode_steps']
     env_constructor = model_description['env_constructor']
-    map_string = PLAYABLE_MAPS[run_config['env']][run_config['map_name']]['map']
     num_episodes = run_config['episodes']
     verbose = run_config['verbose']
     env_name = run_config['env']
@@ -200,7 +208,7 @@ def evaluate_agents(agent_paths: List[str],
             for agent, player in zip(agents, player_names):
                 # Initial hidden and cell state
                 states[player] = agent.model.get_initial_state()
-                prev_actions[player] = np.zeros(1, dtype='int32')
+                prev_actions[player] = 0
 
         # TODO observation recording is broken with the new gymnasium. It needs to be rewritten.
         if record_observations:

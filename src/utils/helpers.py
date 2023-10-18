@@ -2,7 +2,7 @@ import re
 from typing import List, T
 import cv2
 
-from deepmind.examples.rllib.utils import MeltingPotEnv
+from src.deepmind.examples.rllib.utils import MeltingPotEnv
 
 
 # Gets trailing number from a string.
@@ -72,5 +72,3 @@ def get_world_rgb_bounding_box(env: MeltingPotEnv) -> (int, int, int, int):
     # Get bounding box coordinates around the contour
     x, y, w, h = cv2.boundingRect(max_contour)
     return x, y, w, h
-
-

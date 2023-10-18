@@ -1,3 +1,5 @@
+# File instructing on ignoring the following files and directories for git
+
 # Ignore byte-compiled Python code.
 *.py[cod]
 
@@ -8,5 +10,5 @@
 .envrc
 wandb
 /.pytest_cache/
-/evaluation/eval_games/
 /analysis/.ipynb_checkpoints/
+/eval_games/

@@ -8,8 +8,8 @@ from ray.rllib.env import multi_agent_env
 from gymnasium import spaces
 from ray.rllib.utils.typing import MultiAgentDict
 
-from deepmind.examples.rllib.utils import MeltingPotEnv
-from utils.helpers import get_world_rgb_bounding_box
+from src.deepmind.examples.rllib.utils import MeltingPotEnv
+from src.utils.helpers import get_world_rgb_bounding_box
 
 
 # Not really a wrapper as it inherits from MeltingPotEnv rather than gym.wrappers, but this is necessary

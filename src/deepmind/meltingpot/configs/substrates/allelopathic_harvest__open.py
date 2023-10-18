@@ -74,7 +74,7 @@ build = base_config.build
 
 
 def get_config(play_map=OPEN_ASCII_MAP,
-               num_players=16,
+               roles=None,
                env_settings=None):
     """Adjust default configuration."""
     config = base_config.get_config()
@@ -83,10 +83,9 @@ def get_config(play_map=OPEN_ASCII_MAP,
 
     # CUSTOM ADDITIONS
     config.ascii_map = play_map
-    config.num_players = num_players
     config.lab2d_settings_builder = build
-    config.roles = (("player_who_likes_red",) * (num_players // 2 + num_players % 2) +
-             ("player_who_likes_green",) * (num_players // 2))
+    config.roles = roles or config.default_player_roles
+    config.num_players = len(config.roles)
     config.lab2d_settings = build(config.roles, config)
 
     return config

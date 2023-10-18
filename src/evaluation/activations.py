@@ -5,7 +5,7 @@ import numpy as np
 import torch
 from ray.rllib.algorithms.ppo import PPO
 
-from evaluation.arg_parser import supported_activation_layers
+from src.evaluation.arg_parser import supported_activation_layers
 
 
 class ActivationExtractor:

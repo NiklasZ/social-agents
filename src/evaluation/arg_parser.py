@@ -11,15 +11,6 @@ supported_activation_layers = {
     'action_logits': ['_logits_branch', 0]
 }
 
-# # Policies can either be matched up pairwise. E.g: [['policy0','policy1'],['policy0_v0','policy1_v0']]
-# # or any vs. any. E.g:
-# # ['policy0','policy1','policy0_v0','policy1_v0'] <=>
-# # [['policy0','policy1'],['policy0','policy1_v0'], ['policy0_v0','policy1'], ['policy0_v0','policy1_v0']]
-# # Where we skip cases where policies play against versions of themselves or as a player they weren't trained to play.
-# default_multi_policy = json.dumps({
-#     'matchups': [['policy0', 'policy1']],
-# })
-
 example_policy_structure = json.dumps({
     'policy_id': 'policy0',
     'run_id': 'c6bd8_00000',
@@ -55,7 +46,8 @@ def get_evaluation_args(arg_str: Optional[str] = None):
                         help='directory where to save rllib training states to')
     parser.add_argument('--num-gpus', type=int, required=False, default=0,
                         help='how many GPUS to use')
-    parser.add_argument('--score-for-dormant-activations', action=argparse.BooleanOptionalAction, required=False, default=False,
+    parser.add_argument('--score-for-dormant-activations', action=argparse.BooleanOptionalAction, required=False,
+                        default=False,
                         help='Yields normalised scores of activations of neurons')
     parser.add_argument('--eval-folder', type=str, required=False, default='',
                         help='Add a custom sub-folder to add to the evaluation path, '

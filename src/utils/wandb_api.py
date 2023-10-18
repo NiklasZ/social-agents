@@ -4,7 +4,7 @@ from typing import Dict, Optional, List
 import tqdm
 import wandb
 
-from utils.generate_config import get_alg_config
+from src.utils.generate_config import get_alg_config
 
 
 def get_api_key() -> str:

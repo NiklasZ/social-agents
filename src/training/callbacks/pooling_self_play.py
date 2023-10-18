@@ -11,7 +11,7 @@ from ray.rllib.examples.policy.random_policy import RandomPolicy
 from scipy.special import softmax
 from scipy.stats import zscore
 
-from utils.helpers import get_trailing_number, flatten_list
+from src.utils.helpers import get_trailing_number, flatten_list
 
 
 @ray.remote
