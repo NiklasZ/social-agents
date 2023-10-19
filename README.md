@@ -1,75 +1,86 @@
-# NOTE
-This README is outdated and needs to be rewritten.
 # Social MARL
-This a project to find correlations in social representations between artificial agents.
+
+This a project to find correlations in social representations between artificial agents. For our environments we use
+the [Melting Pot](https://github.com/google-deepmind/meltingpot) suite, whose installation is
+under [src/deepmind](src/deepmind).
 
 # Installation
-1. Please install Python >=3.9 (preferred is 3.9.6)
-2. Install the project dependencies by running:
-```
-./king_of_the_hill/scripts/install_requirements.sh
-```
-3. Follow the installation instructions from Melting Pot's [README.md](MELTING_POT_README.md). Note: it's usually easiest to run:
-```
-./install.sh
-```
-which installs everything and runs Melting Pot's test suite.
 
-3. Install the optional Rllib dependencies in [setup.py](setup.py). Via `pip`, this has the following command:
+1. Please install Python 3.10.x. This project has a lot of dependencies, so it is recommended to create a VENV for it.
+2. Install Melting Pot's dependencies and let it download assets needed to use the environments. To do this, run:
+
+```bash
+(cd src/deepmind && pip install --editable .[dev])
 ```
-pip install -e .['rllib']
+
+3. Install the project dependencies. Note: we presently use `torch` with CUDA 11.7. You may need to install a 
+different torch binary to support your CUDA version. To install the dependencies, run:
+
+```bash
+pip install -r requirements.txt
 ```
-4. Install either `torch` or `tensorflow`. We currently use `torch~=1.11.0+cu113` (torch 1.11 with CUDA 11.3) 
-although newer versions should also work.
-6. Ensure you have access to the [wandb project](https://wandb.ai/ece-239-as/social_marl_koth) 
-and create a file `king_of_the_hill/wandb_api_key.txt` and paste your API access key into it.
 
 # Running
-To run the project you should ensure the Python working directory is added to the PYTHONPATH:
+
+To run the project you should ensure the following two working directories are added to your `PYTHONPATH`. Note,
+you need to fill in `<dir_to_project>` here.
+
 ```bash
-export PYTHONPATH='<path_to_repository>/social-agents'
+export PYTHONPATH="${PYTHONPATH}:/<dir_to_project>/social-agents/src:/<dir_to_project>/social-agents/src/deepmind"
+```
+You will also need to set up wandb to track your runs or use the [existing workspace](https://wandb.ai/ece-239-as/social_marl_koth).
+To authenticate yourself, please set your wandb access key:
+```bash
+export WANDB_API_KEY=<your_api_key>
 ```
 
 ## Training
-Training is controlled by [king_of_the_hill/train.py](king_of_the_hill/train.py) and has two modes:
-- `new`, which starts a new training run
-- `resume`, which continues an existing training run
 
-The exact arguments possible for each mode can be obtained via `python king_of_the_hill/train.py new -h` and
-`python king_of_the_hill/train.py resume -h` respectively. Below are example commands
-
-
-### New command example
-Here's an example training command:
+Training is controlled by [src/training/train.py](src/training/train.py) and has an arg-parser which you can query with:
 ```bash
-python king_of_the_hill/train.py new --num-gpus 1 --map-name 13x13_minified_v2 --num-workers 8 --model-name basic_cnn_lstm --episodes-per-training-iteration 8 --checkpoint-frequency 50
+python src/training/train.py new --help
 ```
 
-This should create a run on `wandb` and save the run configuration and checkpoints there. 
-Locally checkpoints are kept in `/tmp/ray_results` although that directory is emptied on every new machine start.
-Lastly, the run should also generate a unique run id shaped like this one: `8c82d_00000`.
-
-### Resume command example
-Using the previously created run id the training can be resumed as follows:
+Here is an example command to use to train a pair of agents in the `predator_and_prey` environment:
 ```bash
-python king_of_the_hill/train.py resume --run-id 8c82d_00000
+python src/training/train.py new \
+  --num-workers 1 \
+  --agent-roles predator prey \
+  --env predator_and_prey_open \
+  --map-name 13x13_example \
+  --model-name baseline_cnn_lstm \
+  --episodes-per-training-iteration 4 \
+  --checkpoint-frequency 100 \
+  --multi-model \
+  --training-iterations 1500
 ```
-
-This works reasonably well, although rllib will often choose to go back a few training iterations for stability. This 
-can mess up `wandb` charts a bit as now multiple datapoints refer to the same training iteration, 
-but it is not a huge concern.
+The above command trains the agents on the CPU only. To use the GPU, specify `--num-gpus 1` as well.
 
 
 ## Evaluation
-Once a run has at least one checkpoint, we can evaluate agents with `python king_of_the_hill/evaluate.py`, which can
-play the learned policies of the agents for multiple games, record them and also track their metrics. Here is an example
-evaluation command:
+
+Once a run has at least one checkpoint, we can evaluate agents with [src/evaluation/evaluate.py](src/evaluation/evaluate.py), which can
+play the learned policies of the agents for multiple games, record them and also track their metrics. The tool can be 
+queried with:
+nd has an arg-parser which you can query with:
 ```bash
-python king_of_the_hill/evaluate.py --run-id 8c82d_00000 --checkpoint-number 1 --episodes 3 --record-observations --recording-fps 5
+python src/evaluation/evaluate.py --help
 ```
 
-Which pulls the checkpoint of the 1st training iteration and evaluates 3 episodes. Notably, videos and other collected metrics
-will be put into [king_of_the_hill/evaluation](king_of_the_hill/eval_games). For more options, run `python king_of_the_hill/evaluate.py -h`
+Here is an example command to use to evaluate a pair of agents in the environment:
+```bash
+python src/evaluation/evaluate.py \
+  --episodes 3 \
+  --num-gpus 1 \
+  --policies "{'policy_id':'policy0', 'run_id':'7558f_00000', 'checkpoint':10}" \
+            "{'policy_id':'policy1', 'run_id':'7558f_00000', 'checkpoint':10}" \
+  --record-episodes \
+  --recording-fps 15
+  ```
+
+Where the above pulls the specified policies from wandb and has them play against each other on the environment 
+they trained on.
 
 ## AWS
-This setup can also be run AWS or any similar cloud service. For further details see [AWS_SETUP_NOTES.md](AWS_SETUP_NOTES.md)
+
+Coming soon...

@@ -20,7 +20,7 @@ example_policy_structure = json.dumps({
 
 def get_evaluation_args(arg_str: Optional[str] = None):
     parser = argparse.ArgumentParser(description='King of the Hill Agent Evaluation')
-    parser.add_argument('--policies', type=str, required=False, nargs='+',
+    parser.add_argument('--policies', type=str, required=True, nargs='+',
                         help='A list of JSON strings detailing which policies to play against each other'
                              f"An example structure is: {example_policy_structure}")
     parser.add_argument('--episodes', type=int, required=False, default=1,
