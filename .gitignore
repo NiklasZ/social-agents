@@ -12,3 +12,6 @@ wandb
 /.pytest_cache/
 /analysis/.ipynb_checkpoints/
 /eval_games/
+/env
+/run.sh
+/.vscode
