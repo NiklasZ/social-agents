@@ -13,7 +13,7 @@ under [src/deepmind](src/deepmind).
 (cd src/deepmind && pip install --editable .[dev])
 ```
 
-3. Install the project dependencies. Note: we presently use `torch` with CUDA 11.7. You may need to install a 
+3. Install the project dependencies. Note: we presently use `torch` with CUDA 12.1. You may need to install a 
 different torch binary to support your CUDA version. To install the dependencies, run:
 
 ```bash
@@ -22,11 +22,11 @@ pip install -r requirements.txt
 
 # Running
 
-To run the project you should ensure the following two working directories are added to your `PYTHONPATH`. Note,
-you need to fill in `<dir_to_project>` here.
+To run the project you should ensure the following two working directories are added to your `PYTHONPATH`. Note, that
+`${PWD}` is assumed to be the root of this project.
 
 ```bash
-export PYTHONPATH="${PYTHONPATH}:/<dir_to_project>/social-agents/src:/<dir_to_project>/social-agents/src/deepmind"
+export PYTHONPATH="${PYTHONPATH}:${PWD}/src:${PWD}/src/deepmind"
 ```
 You will also need to set up wandb to track your runs or use the [existing workspace](https://wandb.ai/ece-239-as/social_marl_koth).
 To authenticate yourself, please set your wandb access key:
