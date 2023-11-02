@@ -37,11 +37,9 @@ eval "$(pyenv init -)"
 
 ### If CUDA version does not match
 Usually it's not easy to reinstall CUDA for a virtual machine. There are some guides online, but they are not straightforward.
-In this case it is usually better to use a different AMI
+In this case it is usually better to use a different AMI.
 
 ### Install the project
 1. Copy the project to the AWS server using the  utility script `copy_project_to.sh` (see file for usage).
 2. Move to the directory of the project and follow the base [README.md](README.md)'s installation instructions.
 
-### Create the Image
-Create the custom image in the AWS EC2 interface (see https://docs.aws.amazon.com/toolkit-for-visual-studio/latest/user-guide/tkv-create-ami-from-instance.html)
