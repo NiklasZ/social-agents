@@ -72,3 +72,23 @@ def get_world_rgb_bounding_box(env: MeltingPotEnv) -> (int, int, int, int):
     # Get bounding box coordinates around the contour
     x, y, w, h = cv2.boundingRect(max_contour)
     return x, y, w, h
+
+
+def dict_to_argparser_args(d: dict) -> List[str]:
+    """
+    Converts a dictionary to a list of strings that can be passed to an argparser.
+    @param d:
+    @return:
+    """
+    args_list = []
+    for key, value in d.items():
+        key = '--' + key  # prepend '--' to make it a valid command-line argument
+        if isinstance(value, bool):
+            # For boolean, only add the key if the value is True
+            if value:
+                args_list.append(key)
+        else:
+            # For non-boolean, convert value to string and add both key and value
+            args_list.extend([key, str(value)])
+
+    return args_list

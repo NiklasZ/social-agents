@@ -1,6 +1,7 @@
 import argparse
 import json
 from time import time
+from typing import List
 
 from src.environment.configs import DEFAULT_ENV_SETTINGS, ENV_ALIASES, MELTING_POT_CONFIG_FUNCS
 from src.environment.helpers import validate_environment_roles
@@ -41,8 +42,8 @@ def merge_input_json_with_default_json(custom_json: str, default_json: str, sett
     return default_settings | custom_settings
 
 
-def get_train_args():
-    parser = argparse.ArgumentParser(description='King of the Hill Agent Training')
+def get_train_args(arg_list: List[str] = None):
+    parser = argparse.ArgumentParser(description='Melting Pot Agent Training')
     subparsers = parser.add_subparsers(help='sub-command help', dest='command')
     subparsers.required = True
 
@@ -118,7 +119,7 @@ def get_train_args():
     parser_new.add_argument('--rllib-path', required=False, type=str, default='/tmp/ray_results',
                             help='directory where to save rllib training states to')
 
-    args = parser.parse_args()
+    args = parser.parse_args(arg_list)
 
     if args.command == 'new':
         args.rllib_run_name = f'{args.run_name}-{int(time())}'  # Attach initial run timestamp for convenience later

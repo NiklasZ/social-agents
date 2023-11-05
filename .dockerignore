@@ -1,0 +1,15 @@
+# File instructing which files to ignore when copying the code to a docker image.
+
+# Ignore byte-compiled Python code.
+*.py[cod]
+
+# Ignore common venv names.
+/*venv/
+
+/.idea
+.envrcy
+wandb
+/.pytest_cache/
+/eval_games/
+/analysis/.ipynb_checkpoints/
+/.git

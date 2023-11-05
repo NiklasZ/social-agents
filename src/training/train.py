@@ -1,7 +1,7 @@
 import numpy as np
 import ray
 from ray.tune import tune
-from arg_parser import get_train_args
+from src.training.arg_parser import get_train_args
 from src.training.callbacks.enhanced_self_play import PolicyScorer
 from src.training.callbacks.pooling_self_play import PolicyPoolManager
 from src.training.callbacks.trial_state_logger import PrintResultCallback
