@@ -8,25 +8,37 @@
 from datetime import datetime
 import boto3
 import os
+
+from environment.configs import DEFAULT_ENV_SETTINGS, ENV_ALIASES
 from src.training.arg_parser import get_train_args
 from src.training.train_sagemaker import parse_aws_hyperparameters
 
 # Training parameters
-hyperparameters = {'num-gpus': 1,
-                   'num-workers': 1,
-                   'agent-roles': 'default default',
-                   'env': 'koth',
-                   'num-gpus-per-worker': 0,
+hyperparameters = {'num-gpus': 0.5,
+                   'num-workers': 4,
+                   'env': 'prisa',
+                   # 'agent-roles': 'default default',
+                   'num-gpus-per-worker': 0.1,
                    'map-name': 'default',
                    'model-name': 'baseline_cnn_lstm',
-                   'episodes-per-training-iteration': 1,
-                   'checkpoint-frequency': 10,
-                   'multi-model': True,
+                   'episodes-per-training-iteration': 4,
+                   'checkpoint-frequency': 100,
+                   'model-sharing': 'one-per-role',
                    'training-iterations': 1500,
                    }
 
+# What machine type to run.
+resource_config = {
+    'InstanceType': 'ml.g4dn.4xlarge',  # ml.g4dn.2xlarge',
+    'InstanceCount': 1,
+    'VolumeSizeInGB': 50
+}
+
 timestamp = datetime.now().strftime('%Y%m%d-%H%M%S')
 
+env_name = hyperparameters['env']
+if env_name not in DEFAULT_ENV_SETTINGS:
+    env_name = ENV_ALIASES[env_name]
 training_job_name = f"{hyperparameters['env']}-job-{timestamp}"
 
 # Which docker image to use for training. Usually the "latest" is fine
@@ -44,20 +56,12 @@ output_data_config = {
     'S3OutputPath': f's3://social-agents/output-f{timestamp}'
 }
 
-# What machine type to run.
-resource_config = {
-    'InstanceType': 'ml.g4dn.2xlarge',
-    'InstanceCount': 1,
-    'VolumeSizeInGB': 50
-}
-
 # Termination conditions for the job.
 stop_condition = {
     'MaxRuntimeInSeconds': 60 * 60 * 24 * 5  # 5 days max runtime
 }
 
 environment_vars = {'WANDB_API_KEY': os.getenv('WANDB_API_KEY')}
-
 
 # Note: Sagemaker hyperparameters must be string values
 hyperparameters = {k: str(v) for k, v in hyperparameters.items()}

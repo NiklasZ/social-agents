@@ -32,6 +32,11 @@ default_pooled_self_play_settings = json.dumps(
      }
 )
 
+# Here the configurations have the following meaning:
+MODEL_SHARING_OPTIONS = ['shared',  # all agents have the same underlying model.
+                         'one-per-role',  # all agents share a model for each type of role defined by melting pot.
+                         'independent']  # all agents have their own model.
+
 
 def merge_input_json_with_default_json(custom_json: str, default_json: str, setting_name='') -> dict:
     custom_settings = json.loads(custom_json.replace("\'", "\""))
@@ -63,7 +68,7 @@ def get_train_args(arg_list: List[str] = None):
                             help='name of the group of runs this one belongs to')
     # parser_new.add_argument('--num-agents', type=int, required=False, default=2,
     #                         help='number of agents that should play in the environment')
-    parser_new.add_argument('--agent-roles', type=str, nargs='+', required=True, default=None,
+    parser_new.add_argument('--agent-roles', type=str, nargs='+', required=False, default=None,
                             help='List of strings describing the roles that the agents in the environment. '
                                  'Note that the number of roles listed also dictates how many agents '
                                  'will play in the environment overall.')
@@ -74,7 +79,7 @@ def get_train_args(arg_list: List[str] = None):
                                  'episodes')
     parser_new.add_argument('--checkpoint-frequency', type=int, required=False, default=50,
                             help='How frequently (in terms of epochs) a model should be checkpointed')
-    parser_new.add_argument('--num-gpus', type=int, required=False, default=0,
+    parser_new.add_argument('--num-gpus', type=float, required=False, default=0,
                             help='how many GPUS to use')
     parser_new.add_argument('--num-workers', type=int, required=False, default=1,
                             help='how many worker processes to use. Use only 1 when debugging')
@@ -90,14 +95,12 @@ def get_train_args(arg_list: List[str] = None):
     parser_new.add_argument('--model-name', type=str, required=True,
                             help='Which model to use for training. Available models are: '
                                  f"{', '.join(MODELS.keys())}")
-    # TODO allow 3 options: shared model, one model per role, or all independent models
-    parser_new.add_argument('--multi-model', action=argparse.BooleanOptionalAction, required=False, default=False,
-                            help='if set lets each agent have its own model instance for both'
-                                 ' value function and policy.'
-                                 'Otherwise, uses a shared model instance for every agent')
+    parser_new.add_argument('--model-sharing', type=str, required=False, default='independent',
+                            help='determines whether agents should share models or not. '
+                                 f"Available options are: {', '.join(MODEL_SHARING_OPTIONS)}")
     parser_new.add_argument('--generalising-self-play', action=argparse.BooleanOptionalAction, required=False,
                             default=False,
-                            help='makes agent play against itself and past agents. Cannot be used alongside --multi-model')
+                            help='makes agent play against itself and past agents. Cannot be used alongside')
     parser_new.add_argument('--pooled-self-play', type=str, required=False, default=None,
                             help='settings JSON for the pooled-self-play. '
                                  f"Default is: {default_pooled_self_play_settings}")
@@ -144,17 +147,18 @@ def get_train_args(arg_list: List[str] = None):
 
         args.group_name = f'{ENV_ALIASES[args.env]}-{args.group_name}'
 
-        # Check role definitions are valid
-        validate_environment_roles(args.env, args.agent_roles)
+        if args.agent_roles:
+            # Check role definitions are valid
+            validate_environment_roles(args.env, args.agent_roles)
 
         if not args.num_parallel_envs:
             args.num_parallel_envs = args.num_workers
 
-        if args.multi_model and args.generalising_self_play:
-            raise Exception('Cannot set both --multi-model and --generalising-self-play')
+        if args.framework != 'torch':
+            raise Exception("Deep learning framework must be 'torch' as 'tf2' is not supported yet.")
 
-        if args.framework not in ['torch', 'tf2']:
-            raise Exception("Deep learning framework must be either 'torch' or 'tf2'")
+        if args.pooled_self_play or args.generalising_self_play:
+            raise Exception('Advanced self-play methods are outdated and need to be re-implemented.')
 
         if args.pooled_self_play and not args.multi_model:
             raise Exception('Pooled self-play currently only supports multiple models.')
@@ -164,5 +168,8 @@ def get_train_args(arg_list: List[str] = None):
             args.pooled_self_play = merge_input_json_with_default_json(args.pooled_self_play,
                                                                        default_pooled_self_play_settings,
                                                                        'pooled_self_play')
+
+        if args.model_sharing not in MODEL_SHARING_OPTIONS:
+            raise Exception(f"Model sharing must be one of {MODEL_SHARING_OPTIONS}")
 
     return args

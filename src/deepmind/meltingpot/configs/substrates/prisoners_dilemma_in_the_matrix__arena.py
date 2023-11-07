@@ -495,7 +495,9 @@ def create_avatar_objects(num_players: int) -> Sequence[PrefabConfig]:
   return avatar_objects
 
 
-def get_config():
+def get_config(roles=None,
+               play_map=ASCII_MAP,
+               env_settings=None):
   """Default configuration."""
   config = config_dict.ConfigDict()
 
@@ -528,6 +530,13 @@ def get_config():
   config.valid_roles = frozenset({"default"})
   config.default_player_roles = ("default",) * 8
 
+  # CUSTOM ADDITIONS
+  config.roles = roles or config.default_player_roles
+  config.num_players = len(config.roles)
+  config.ascii_map = play_map
+  config.lab2d_settings_builder = build
+  config.lab2d_settings = build(config.roles, config)
+
   return config
 
 
@@ -536,7 +545,6 @@ def build(
     config: config_dict.ConfigDict,
 ) -> Mapping[str, Any]:
   """Build substrate definition given roles."""
-  del config
   num_players = len(roles)
   # Build the rest of the substrate definition.
   substrate_definition = dict(
@@ -548,7 +556,7 @@ def build(
       spriteSize=8,
       topology="BOUNDED",  # Choose from ["BOUNDED", "TORUS"],
       simulation={
-          "map": ASCII_MAP,
+          "map": config.ascii_map,
           "gameObjects": create_avatar_objects(num_players=num_players),
           "scene": create_scene(),
           "prefabs": create_prefabs(),

@@ -451,7 +451,9 @@ ACTION_SET = (
 )
 
 
-def get_config():
+def get_config(roles=None,
+               play_map=None,
+               env_settings=None):
   """Default configuration for the Coins substrate."""
   config = configdict.ConfigDict()
 
@@ -488,6 +490,16 @@ def get_config():
   config.valid_roles = frozenset({"default"})
   config.default_player_roles = ("default",) * MANDATED_NUM_PLAYERS
 
+  # CUSTOM ADDITIONS
+  config.roles = roles or config.default_player_roles
+  config.num_players = len(config.roles)
+  config.ascii_map = play_map or get_ascii_map(min_width=config.min_width,
+                               max_width=config.max_width,
+                               min_height=config.min_height,
+                               max_height=config.max_height)
+  config.lab2d_settings_builder = build
+  config.lab2d_settings = build(config.roles, config)
+
   return config
 
 
@@ -519,10 +531,7 @@ def build(
       spriteSize=8,
       topology="BOUNDED",  # Choose from ["BOUNDED", "TORUS"],
       simulation={
-          "map": get_ascii_map(min_width=config.min_width,
-                               max_width=config.max_width,
-                               min_height=config.min_height,
-                               max_height=config.max_height),
+          "map": config.ascii_map,
           "scene": SCENE,
           "prefabs": get_prefabs(coin_type_a=coin_type_a,
                                  coin_type_b=coin_type_b),
