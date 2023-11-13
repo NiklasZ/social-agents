@@ -15,13 +15,14 @@ example_policy_structure = json.dumps({
     'policy_id': 'policy0',
     'run_id': 'c6bd8_00000',
     'checkpoint': 1000,
+    'role': 'default'
 })
 
 
 def get_evaluation_args(arg_str: Optional[str] = None):
     parser = argparse.ArgumentParser(description='King of the Hill Agent Evaluation')
-    parser.add_argument('--policies', type=str, required=True, nargs='+',
-                        help='A list of JSON strings detailing which policies to play against each other'
+    parser.add_argument('--players', type=str, required=True, nargs='+',
+                        help='A list of JSON strings detailing which policies to play against each other in what roles.'
                              f"An example structure is: {example_policy_structure}")
     parser.add_argument('--episodes', type=int, required=False, default=1,
                         help='the number of episodes to evaluate')
@@ -61,9 +62,9 @@ def get_evaluation_args(arg_str: Optional[str] = None):
                 raise Exception(f'Unsupported activation layer {a}. Available layers are {supported_activation_layers}')
 
     policy_ids = set()
-    policy_infos = []
+    player_infos = []
     example_p = json.loads(example_policy_structure)
-    for raw_p in args.policies:
+    for raw_p in args.players:
         p = json.loads(raw_p.replace("\'", "\""))
         p_fields = set(p.keys())
         example_p_fields = set(example_p.keys())
@@ -74,8 +75,8 @@ def get_evaluation_args(arg_str: Optional[str] = None):
             raise Exception(f"Duplicate policy id {p['policy_id']} found")
         policy_ids.add(p['policy_id'])
 
-        policy_infos.append(p)
+        player_infos.append(p)
 
-    args.policies = policy_infos
+    args.players = player_infos
 
     return args

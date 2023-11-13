@@ -72,8 +72,8 @@ Here is an example command to use to evaluate a pair of agents in the environmen
 python src/evaluation/evaluate.py \
   --episodes 3 \
   --num-gpus 1 \
-  --policies "{'policy_id':'policy0', 'run_id':'7558f_00000', 'checkpoint':10}" \
-            "{'policy_id':'policy1', 'run_id':'7558f_00000', 'checkpoint':10}" \
+  --players "{'policy_id':'policy_0', 'run_id':'05c94_00000', 'checkpoint':1500, 'role':'default'}"
+            "{'policy_id':'policy_1', 'run_id':'05c94_00000', 'checkpoint':1500, 'role':'default'}"
   --record-episodes \
   --recording-fps 15
   ```

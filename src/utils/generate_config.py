@@ -15,14 +15,12 @@ from src.utils.helpers import get_trailing_number
 
 def get_alg_config(run_config: Dict, training=True) -> Dict:
     # Support for generating evaluation configs for older agents whose configs may not have these new fields.
-    # if not training:
-    #     default_values = {'episodes_per_training_iteration': 4,
-    #                       'framework': 'tf2',
-    #                       'env_settings': json.loads(default_env_settings.replace("\'", "\"")),
-    #                       'num_gpus_per_worker': 0,
-    #                       'obs_filter': 'NoFilter',
-    #                       'pooled_self_play': None}
-    #     run_config = default_values | run_config
+    if not training:
+        default_values = {
+            'model_sharing': 'independent' if 'multi_model' in run_config and run_config['multi_model']
+            else 'shared'
+        }
+        run_config = default_values | run_config
 
     # The agent algorithm to use
     # PPO
@@ -67,56 +65,57 @@ def get_alg_config(run_config: Dict, training=True) -> Dict:
     test_env = env_constructor(config['env_config'])
 
     # Specify policy to model mapping
-    # Every agent gets a separate policy
-    if run_config['model_sharing'] == 'independent':
-        policies = {f'policy_{i}': PolicySpec(
-            policy_class=None,  # use default policy
-            observation_space=test_env.observation_space[f'player_{i}'],
-            action_space=test_env.action_space[f'player_{i}'],
-            config={},
-        ) for i in range(0, len(env_config['roles']))}
-        config['multiagent'] = {
-            'policies': policies,
-            'policy_mapping_fn': lambda agent_id, episode, worker, **kwargs: f'policy_{get_trailing_number(agent_id)}',
-            'count_steps_by': 'env_steps',
-        }
-    # Every agent shares the same policy
-    elif run_config['model_sharing'] == 'shared':
-        config['multiagent'] = {
-            'policies': {
-                'av':
-                    PolicySpec(
-                        policy_class=None,  # use default policy
-                        observation_space=test_env.observation_space['player_0'],
-                        action_space=test_env.action_space['player_0'],
-                        config={},
-                    ),
-            },
-            'policy_mapping_fn': lambda agent_id, episode, worker, **kwargs: 'av',
-            'count_steps_by': 'env_steps',
-        }
-    # When using one policy per role
-    elif run_config['model_sharing'] == 'one-per-role':
-        role_types = list(set(env_config['roles']))
-        policies = {f'policy_{r}': PolicySpec(
-            policy_class=None,  # use default policy
-            observation_space=test_env.observation_space[f'player_0'],
-            action_space=test_env.action_space[f'player_0'],
-            config={},
-        ) for r in role_types}
+    match run_config['model_sharing']:
+        # Every agent gets a separate policy
+        case 'independent':
+            policies = {f'policy_{i}': PolicySpec(
+                policy_class=None,  # use default policy
+                observation_space=test_env.observation_space[f'player_{i}'],
+                action_space=test_env.action_space[f'player_{i}'],
+                config={},
+            ) for i in range(0, len(env_config['roles']))}
+            config['multiagent'] = {
+                'policies': policies,
+                'policy_mapping_fn': lambda agent_id, episode, worker, **kwargs: f'policy_{get_trailing_number(agent_id)}',
+                'count_steps_by': 'env_steps',
+            }
+        # Every agent shares the same policy
+        case 'shared':
+            config['multiagent'] = {
+                'policies': {
+                    'av':
+                        PolicySpec(
+                            policy_class=None,  # use default policy
+                            observation_space=test_env.observation_space['player_0'],
+                            action_space=test_env.action_space['player_0'],
+                            config={},
+                        ),
+                },
+                'policy_mapping_fn': lambda agent_id, episode, worker, **kwargs: 'av',
+                'count_steps_by': 'env_steps',
+            }
+        # When using one policy per role
+        case 'one-per-role':
+            role_types = list(set(env_config['roles']))
+            policies = {f'policy_{r}': PolicySpec(
+                policy_class=None,  # use default policy
+                observation_space=test_env.observation_space[f'player_0'],
+                action_space=test_env.action_space[f'player_0'],
+                config={},
+            ) for r in role_types}
 
-        def policy_mapping_fn(agent_id, episode, worker, **kwargs):
-            agent_idx = get_trailing_number(agent_id)
-            role = env_config['roles'][agent_idx]
-            return f'policy_{role}'
+            def policy_mapping_fn(agent_id, episode, worker, **kwargs):
+                agent_idx = get_trailing_number(agent_id)
+                role = env_config['roles'][agent_idx]
+                return f'policy_{role}'
 
-        config['multiagent'] = {
-            'policies': policies,
-            'policy_mapping_fn': policy_mapping_fn,
-            'count_steps_by': 'env_steps',
-        }
-    else:
-        raise Exception(f"Model sharing mode {run_config['model_sharing']} not recognised.")
+            config['multiagent'] = {
+                'policies': policies,
+                'policy_mapping_fn': policy_mapping_fn,
+                'count_steps_by': 'env_steps',
+            }
+        case _:
+            raise Exception(f"Model sharing mode {run_config['model_sharing']} not recognised.")
 
     # Set number of GPUs to use
     config['num_gpus'] = run_config['num_gpus']

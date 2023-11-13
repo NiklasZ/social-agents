@@ -16,30 +16,30 @@ from src.training.train_sagemaker import parse_aws_hyperparameters
 # Training parameters
 hyperparameters = {'num-gpus': 0.5,
                    'num-workers': 4,
-                   'env': 'prisa',
-                   # 'agent-roles': 'default default',
+                   'env': 'terro',
+                   'agent-roles': 'default default',
                    'num-gpus-per-worker': 0.1,
-                   'map-name': 'default',
+                   'map-name': '15x15_minified',
                    'model-name': 'baseline_cnn_lstm',
                    'episodes-per-training-iteration': 4,
                    'checkpoint-frequency': 100,
-                   'model-sharing': 'one-per-role',
+                   'model-sharing': 'independent',
                    'training-iterations': 1500,
                    }
 
 # What machine type to run.
 resource_config = {
-    'InstanceType': 'ml.g4dn.4xlarge',  # ml.g4dn.2xlarge',
+    'InstanceType': 'ml.g4dn.2xlarge',  # ml.g4dn.2xlarge',
     'InstanceCount': 1,
-    'VolumeSizeInGB': 50
+    'VolumeSizeInGB': 200
 }
 
 timestamp = datetime.now().strftime('%Y%m%d-%H%M%S')
 
 env_name = hyperparameters['env']
 if env_name not in DEFAULT_ENV_SETTINGS:
-    env_name = ENV_ALIASES[env_name]
-training_job_name = f"{hyperparameters['env']}-job-{timestamp}"
+    env_name = ENV_ALIASES[env_name].replace('_', '-')
+training_job_name = f"{env_name}-{timestamp}"
 
 # Which docker image to use for training. Usually the "latest" is fine
 algorithm_specification = {

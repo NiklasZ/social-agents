@@ -1,6 +1,6 @@
 import copy
 import time
-from typing import Dict, Any, List, Tuple
+from typing import Dict, List, Tuple
 import numpy as np
 import ray
 from ray.rllib import Policy
@@ -14,30 +14,20 @@ import warnings
 import pickle
 import wandb
 
+from environment.helpers import validate_environment_roles
+from evaluation.observation_recorder import ObservationRecorder
 from src.environment.configs import PLAYABLE_MAPS, ENV_EVAL_METRIC_FUNCS, MELTING_POT_CONFIG_FUNCS
 from src.environment.wrappers import RenderCropper
 from src.evaluation.activations import ActivationExtractor, NeuronScorer
 from src.evaluation.arg_parser import get_evaluation_args
 from src.models.model_catalog import MODELS
-from src.utils.helpers import get_trailing_number, to_player_name, get_world_rgb_bounding_box
+from src.utils.helpers import get_trailing_number, to_player_name, get_world_rgb_bounding_box, \
+    remove_prefix_from_files_in
 from src.utils.wandb_api import download_evaluation_state, make_dir_if_not_exists
+from utils.helpers import log_verbose
 
 # Ignoring deprecations because 9/10 times it is 3rd libraries complaining about each other.
 warnings.filterwarnings("ignore", category=DeprecationWarning)
-
-
-def log_verbose(value, verbose):
-    if verbose:
-        print(value)
-
-
-# Gets list of tuples containing policy id and player name
-def get_names(config: Dict, run_config: Dict) -> List[Tuple[str, str]]:
-    # Case for one default model
-    if not run_config['multi_model']:
-        return [('av', f'player_{i}') for i in range(config['env_config']['num_players'])]
-    # Case for multiple models
-    return [(p, f'player_{get_trailing_number(p)}') for p, _ in sorted(config['multiagent']['policies'].items())]
 
 
 def get_eval_path(run_config: Dict, env_name: str, timestamp: str = '') -> str:
@@ -55,22 +45,36 @@ def evaluate(run_config: Dict):
     agent_paths = []
     agent_dicts = []
 
-    for policy_info in run_config['policies']:
-        checkpoint_folder = f"checkpoint_{policy_info['checkpoint']:06}"
-        checkpoint_name = f"checkpoint-{policy_info['checkpoint']}"
-        run_id = policy_info['run_id']
+    for idx, player_info in enumerate(run_config['players']):
+        checkpoint_folder = f"checkpoint_{player_info['checkpoint']:06}"
+        checkpoint_name = f"checkpoint-{player_info['checkpoint']}"
+        run_id = player_info['run_id']
 
         checkpoint_path, agent_config, agent_run_config = download_evaluation_state(rllib_path=rllib_path,
                                                                                     run_config=copy.deepcopy(
                                                                                         run_config),
                                                                                     run_id=run_id,
                                                                                     checkpoint_folder=checkpoint_folder)
-        agent_dicts.append({
-                               'checkpoint_name': checkpoint_name,
-                               'rllib_run_name': agent_run_config['rllib_run_name'],
-                               'run_config': agent_run_config,
-                               'config': agent_config,
-                           } | policy_info)
+
+        a_d = {'checkpoint_name': checkpoint_name,
+               'rllib_run_name': agent_run_config['rllib_run_name'],
+               'run_config': agent_run_config,
+               'config': agent_config,
+               'player': f'player_{idx}'
+               } | player_info
+
+        # Sanity-check that the role of the agent matches the role it was trained on.
+        evaluation_role = training_role = a_d['role']
+        if a_d['run_config']['model_sharing'] == 'independent':
+            agent_training_idx = get_trailing_number(a_d['policy_id'])
+            training_role = a_d['run_config']['agent_roles'][agent_training_idx]
+
+        elif a_d['run_config']['model_sharing'] == 'one-per-role':
+            training_role = a_d['policy_id'].split('_')[1]
+
+        assert training_role == evaluation_role, \
+            f'Expected training role {training_role} to match evaluation role {evaluation_role} for player {idx}'
+        agent_dicts.append(a_d)
         agent_paths.append(checkpoint_path)
 
     model_names = {a_d['run_config']['model_name'] for a_d in agent_dicts}
@@ -79,11 +83,13 @@ def evaluate(run_config: Dict):
             'Presently, agents may only be evaluated against each other if they use the same model. '
             f'Found models: f{model_names}')
 
-    env_names = {a_d['run_config']['env'] for a_d in agent_dicts}
+    env_names = list({a_d['run_config']['env'] for a_d in agent_dicts})
     if len(env_names) != 1:
         raise Exception(
             'Presently, agents may only be evaluated against each other if they use the same environment. '
             f'Found environments: f{env_names}')
+
+    validate_environment_roles(env_names[0], [a_d['role'] for a_d in agent_dicts])
 
     base_eval_path = get_eval_path(run_config=run_config, timestamp=timestamp, env_name=agent_run_config['env'])
     evaluate_agents(agent_paths=agent_paths,
@@ -113,9 +119,9 @@ def evaluate_agents(agent_paths: List[str],
     # environment. We use the map and extra settings of the first agent, but the roles are obtained from each
     # agent's actual role they had during training.
     map_string = PLAYABLE_MAPS[run_config['env']][run_config['map_name']]['map']
-    agent_roles = [a['run_config']['agent_roles'][get_trailing_number(a['policy_id'])] for a in agent_dicts]
+    # agent_roles = [a['run_config']['agent_roles'][get_trailing_number(a['policy_id'])] for a in agent_dicts]
     env_config = MELTING_POT_CONFIG_FUNCS[run_config['env']](
-        roles=agent_roles,
+        roles=[a_d['role'] for a_d in agent_dicts],
         play_map=map_string,
         env_settings=run_config['env_settings'])
 
@@ -133,10 +139,7 @@ def evaluate_agents(agent_paths: List[str],
     policy_names = [f"{a['rllib_run_name']}.{a['checkpoint_name']}.{a['policy_id']}" for a in agent_dicts]
     print(f"Evaluating policies: {', '.join(policy_names)} in {env_name}")
     matchup_path = f"{eval_path}/{'__VS__'.join(policy_names)}"
-    player_names = []
-    for agent_dict in agent_dicts:
-        agent_dict['player'] = to_player_name(agent_dict['policy_id'])
-        player_names.append(agent_dict['player'])
+    player_names = [a_d['player'] for a_d in agent_dicts]
 
     # If set, store activations from final layers
     if activations_names:
@@ -210,13 +213,11 @@ def evaluate_agents(agent_paths: List[str],
                 states[player] = agent.model.get_initial_state()
                 prev_actions[player] = 0
 
-        # TODO observation recording is broken with the new gymnasium. It needs to be rewritten.
         if record_observations:
-            observation_recorders = {player: ImageEncoder(
-                output_path=f"{video_path}/episode-{episode * 1000}-{player}.mp4",
-                frame_shape=list(obs.values())[0].shape,
-                frames_per_sec=recording_fps,
-                output_frames_per_sec=recording_fps) for player in player_names}
+            observation_recorder = ObservationRecorder(video_folder=video_path,
+                                                       video_prefix=f'episode{episode}',
+                                                       frame_shapes={p: obs[p].shape for p in player_names},
+                                                       frames_per_sec=recording_fps)
         while not done:
             actions = {}
             for agent, a_dict in zip(agents, agent_dicts):
@@ -266,12 +267,10 @@ def evaluate_agents(agent_paths: List[str],
                 test_env.video_recorder.capture_frame()
 
             if record_observations:
-                for player in obs:
-                    observation_recorders[player].capture_frame(obs[player])
+                observation_recorder.capture_frame(obs)
 
         if record_observations:
-            for player in observation_recorders:
-                observation_recorders[player].close()
+            observation_recorder.close()
 
         if activations_names:
             len(activation_extractor.activations[player_names[0]])
@@ -297,6 +296,8 @@ def evaluate_agents(agent_paths: List[str],
 
         if record_episodes:
             test_env.close_video_recorder()
+            # minor cleanup as gymnasium adds a '-' even if there is no prefix
+            remove_prefix_from_files_in(folder=video_path, prefix='-')
 
         all_metrics = {'general_metrics': metrics, 'env_metrics': env_metrics}
         # Record metrics every few eval steps. Just in case we interrupt evaluation at some point

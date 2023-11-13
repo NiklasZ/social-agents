@@ -1,7 +1,7 @@
 import re
 from typing import List, T
 import cv2
-
+import os
 from src.deepmind.examples.rllib.utils import MeltingPotEnv
 
 
@@ -92,3 +92,20 @@ def dict_to_argparser_args(d: dict) -> List[str]:
             args_list.extend([key, str(value)])
 
     return args_list
+
+
+def remove_prefix_from_files_in(folder: str, prefix: str):
+    """
+    Removes a prefix from all files in a folder.
+    @param folder: folder to remove prefix from
+    @param prefix: prefix to remove
+    @return:
+    """
+    assert os.path.isdir(folder), f"Folder {folder} does not exist"
+    for filename in os.listdir(folder):
+        os.rename(os.path.join(folder, filename), os.path.join(folder, filename.replace(prefix, '')))
+
+
+def log_verbose(value, verbose):
+    if verbose:
+        print(value)
