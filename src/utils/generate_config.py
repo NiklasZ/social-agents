@@ -13,15 +13,20 @@ from src.training.callbacks.pooling_self_play import PoolingSelfPlayCallback
 from src.utils.helpers import get_trailing_number
 
 
-def get_alg_config(run_config: Dict, training=True) -> Dict:
-    # Support for generating evaluation configs for older agents whose configs may not have these new fields.
-    if not training:
-        default_values = {
-            'model_sharing': 'independent' if 'multi_model' in run_config and run_config['multi_model']
-            else 'shared'
-        }
-        run_config = default_values | run_config
+def patch_run_config(run_config: Dict) -> Dict:
+    """
+    Patches an old run config to include default values for missing fields. This is useful for backwards compatibility.
+    @param run_config:
+    @return:
+    """
+    default_values = {
+        'model_sharing': 'independent' if 'multi_model' in run_config and run_config['multi_model']
+        else 'shared'
+    }
+    return default_values | run_config
 
+
+def get_alg_config(run_config: Dict, training=True) -> Dict:
     # The agent algorithm to use
     # PPO
     config = copy.deepcopy(
