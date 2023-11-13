@@ -51,7 +51,7 @@ python src/training/train.py new \
   --model-name baseline_cnn_lstm \
   --episodes-per-training-iteration 4 \
   --checkpoint-frequency 100 \
-  --multi-model \
+  --model-sharing independent \
   --training-iterations 1500
 ```
 The above command trains the agents on the CPU only. To use the GPU, specify `--num-gpus 1` as well.
@@ -83,4 +83,4 @@ they trained on.
 
 ## AWS
 
-Coming soon...
+The project can be run on AWS EC2 services and Sagemaker. See [aws](aws) for some instructions.
