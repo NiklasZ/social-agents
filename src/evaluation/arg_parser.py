@@ -2,6 +2,7 @@ import argparse
 import json
 import shlex
 from typing import Optional
+from utils.helpers import check_json_has_fields
 
 # Maps a particular layer name to the property name and index of the respective dimension in the activation
 supported_activation_layers = {
@@ -11,11 +12,17 @@ supported_activation_layers = {
     'action_logits': ['_logits_branch', 0]
 }
 
-example_policy_structure = json.dumps({
+example_players_structure = json.dumps({
     'policy_id': 'policy0',
     'run_id': 'c6bd8_00000',
     'checkpoint': 1000,
     'role': 'default'
+})
+
+example_activation_structure = json.dumps({
+    'layer_path': 'lstm',  # Object property and index path to the layer
+    'activation_path': '1.0',  # Path to the activation. Can also be empty for the whole activation.
+    'alias': 'lstm_hidden',  # An alias to save the activations under
 })
 
 
@@ -23,7 +30,7 @@ def get_evaluation_args(arg_str: Optional[str] = None):
     parser = argparse.ArgumentParser(description='King of the Hill Agent Evaluation')
     parser.add_argument('--players', type=str, required=True, nargs='+',
                         help='A list of JSON strings detailing which policies to play against each other in what roles.'
-                             f"An example structure is: {example_policy_structure}")
+                             f"An example structure is: {example_players_structure}")
     parser.add_argument('--episodes', type=int, required=False, default=1,
                         help='the number of episodes to evaluate')
     parser.add_argument('--record-episodes', action=argparse.BooleanOptionalAction, required=False, default=False,
@@ -41,8 +48,8 @@ def get_evaluation_args(arg_str: Optional[str] = None):
     parser.add_argument('--debug-mode', action=argparse.BooleanOptionalAction, required=False, default=False,
                         help='toggle in order to allow debugging of code by running it on a local process.')
     parser.add_argument('--activations', type=str, required=False, nargs='+',
-                        help=f'toggle in order to save activations for the provided layer names. '
-                             f'Supported layer names are {list(supported_activation_layers.keys())}')
+                        help=f'set as list of JSONS in order to record activations of neurons. '
+                             f'An example structure is: {example_activation_structure}')
     parser.add_argument('--rllib-path', required=False, type=str, default='/tmp/ray_results',
                         help='directory where to save rllib training states to')
     parser.add_argument('--num-gpus', type=int, required=False, default=0,
@@ -56,27 +63,22 @@ def get_evaluation_args(arg_str: Optional[str] = None):
 
     args = parser.parse_args(shlex.split(arg_str)) if arg_str else parser.parse_args()
 
-    if args.activations:
-        for a in args.activations:
-            if a not in list(supported_activation_layers.keys()):
-                raise Exception(f'Unsupported activation layer {a}. Available layers are {supported_activation_layers}')
 
-    policy_ids = set()
+    # Validate player JSONs
     player_infos = []
-    example_p = json.loads(example_policy_structure)
-    for raw_p in args.players:
-        p = json.loads(raw_p.replace("\'", "\""))
-        p_fields = set(p.keys())
-        example_p_fields = set(example_p.keys())
-        if p_fields != example_p_fields:
-            raise Exception(
-                f'Policy {p} is missing the following required fields: {example_p_fields.difference(p_fields)}')
-        if p['policy_id'] in policy_ids:
-            raise Exception(f"Duplicate policy id {p['policy_id']} found")
-        policy_ids.add(p['policy_id'])
-
-        player_infos.append(p)
-
+    for p in args.players:
+        check_json_has_fields(p.replace("\'", "\""), example_players_structure)
+        player_infos.append(json.loads(p.replace("\'", "\"")))
     args.players = player_infos
 
+    # Validate activation JSONs
+    activation_infos = []
+    if args.activations:
+        for a in args.activations:
+            check_json_has_fields(a.replace("\'", "\""), example_activation_structure)
+            activation_infos.append(json.loads(a.replace("\'", "\"")))
+
+        aliases = [a['alias'] for a in activation_infos]
+        assert len(aliases) == len(set(aliases)), f"Duplicate activation alias found in {aliases}"
+        args.activations = activation_infos
     return args

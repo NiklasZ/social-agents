@@ -3,9 +3,8 @@ from copy import deepcopy
 from typing import Callable, List
 import numpy as np
 import torch
-from ray.rllib.algorithms.ppo import PPO
-
-from src.evaluation.arg_parser import supported_activation_layers
+from ray.rllib.algorithms.ppo import PPO, PPOTorchPolicy
+from utils.helpers import get_property
 
 
 class ActivationExtractor:
@@ -20,7 +19,7 @@ class ActivationExtractor:
     def clear_activations(self):
         self.activations = {}
 
-    def register_activation_hooks(self, agent: PPO, policy_name: str, layer_aliases: List[str]):
+    def register_activation_hooks(self, policy: PPOTorchPolicy, target_paths: dict):
         """
         Adds hooks to save activations from all neural network layers in this class.
         For more details on how this works, see:
@@ -29,25 +28,14 @@ class ActivationExtractor:
         :return:
         """
 
-        layer_names = [supported_activation_layers[l][0] for l in layer_aliases]
-        layer_indices = [supported_activation_layers[l][1] for l in layer_aliases]
+        model = policy.model
 
-        model = agent.get_policy(policy_name).model
-
-        for name, index, alias in zip(layer_names, layer_indices, layer_aliases):
-            def save_activations(index: int, alias: str) -> Callable:
+        for t in target_paths:
+            def save_activations(activation_path: str, alias: str) -> Callable:
                 def save(model: torch.nn.Module, input, output):
-                    # RNNs will output a tuple containing the same tensor twice, so we need to pick one.
-                    if type(model).__name__ in ['RNN', 'LSTM'] and isinstance(index, int):
-                        # Need to pick the hidden layer activation, rather than the cell state
-                        # (LSTM case. With RNN it doesn't really matter)
-                        activation = output[1][index].cpu().detach().numpy().squeeze()
-                    elif type(model).__name__ in ['SlimFC']:
-                        activation = output.cpu().detach().numpy().squeeze()
-                    else:
-                        raise NotImplementedError("Other activation layers not supported. Please implement")
-
-                    concatable = np.expand_dims(activation, axis=0)
+                    activation = get_property(output, activation_path)
+                    copied_output = activation.cpu().detach().numpy().squeeze()
+                    concatable = np.expand_dims(copied_output, axis=0)
 
                     # Set up dict path
                     if self.current_player not in self.activations:
@@ -60,8 +48,8 @@ class ActivationExtractor:
 
                 return save
 
-            layer = getattr(model, name)
-            hook = layer.register_forward_hook(save_activations(index, alias))
+            layer = get_property(model, t['layer_path'])
+            hook = layer.register_forward_hook(save_activations(t['activation_path'], t['alias']))
             self.hooks.append(hook)
 
     def deregister_activation_hooks(self):

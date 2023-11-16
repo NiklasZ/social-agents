@@ -1,7 +1,13 @@
+import collections.abc
+import json
 import re
 from typing import List, T
 import cv2
 import os
+
+import numpy as np
+from torch import Tensor
+
 from src.deepmind.examples.rllib.utils import MeltingPotEnv
 
 
@@ -109,3 +115,38 @@ def remove_prefix_from_files_in(folder: str, prefix: str):
 def log_verbose(value, verbose):
     if verbose:
         print(value)
+
+
+def get_property(root_obj: object, property_path: str) -> object:
+    """
+    Gets the content of a nested property of an object, including support for indexing. Some exmaples:
+    get_content_path(model, 'lstm.weight_hh_l0.0.0') -> single parameter tensor (i.e one weight).
+    @param root_obj: The root object from which to start retrieving content.
+    @param property_path: A string representing the path to the desired content, using dot notation and indices.
+    @return: The content at the specified path, if it exists.
+    """
+    obj = root_obj
+    for part in property_path.split("."):
+        # Handle index in path
+        if part.isdigit():
+            idx = int(part)
+            if not isinstance(obj, (collections.abc.Sequence, Tensor, np.ndarray)):
+                raise Exception(f"Attempted to access non-indexable object in '{property_path}' with index {part}.")
+            if idx > len(obj):
+                raise IndexError(f"Index {idx} is out of range for object in '{property_path}' of length {len(obj)}.")
+            obj = obj[idx]
+        # Handle attribute in path
+        else:
+            # Check if the object has the attribute
+            if not hasattr(obj, part):
+                raise AttributeError(f"Object path {property_path} does not have attribute '{part}'.")
+            obj = getattr(obj, part)
+    return obj
+
+
+def check_json_has_fields(given_json: str, target_json: str):
+    given_fields = set(json.loads(given_json))
+    target_fields = set(json.loads(target_json))
+    different_fields = target_fields.difference(given_fields)
+    assert len(different_fields) == 0, (f"Given JSON '{given_json}' is missing the following fields: " +
+                                        str(different_fields))

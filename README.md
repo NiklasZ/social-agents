@@ -74,8 +74,6 @@ python src/evaluation/evaluate.py \
   --num-gpus 1 \
   --players "{'policy_id':'policy_0', 'run_id':'05c94_00000', 'checkpoint':1500, 'role':'default'}"
             "{'policy_id':'policy_1', 'run_id':'05c94_00000', 'checkpoint':1500, 'role':'default'}"
-  --record-episodes \
-  --recording-fps 15
   ```
 
 Where the above pulls the specified policies from wandb and has them play against each other on the environment 

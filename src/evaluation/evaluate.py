@@ -112,7 +112,7 @@ def evaluate_agents(agent_paths: List[str],
 
     current_time = time.time()
     run_config = agent_dicts[0]['run_config']
-    activations_names = run_config['activations']
+    activation_paths = run_config['activations']
     score_activations = run_config['score_for_dormant_activations']
 
     # We regenerate the environment configuration here as both agents may not have been trained on the exact same
@@ -142,10 +142,10 @@ def evaluate_agents(agent_paths: List[str],
     player_names = [a_d['player'] for a_d in agent_dicts]
 
     # If set, store activations from final layers
-    if activations_names:
+    if activation_paths:
         activation_extractor = ActivationExtractor()
         for a, d in zip(agents, agent_dicts):
-            activation_extractor.register_activation_hooks(a, d['policy_id'], activations_names)
+            activation_extractor.register_activation_hooks(a, activation_paths)
 
     # If set, score activations for every neuron in net, relative to layer
     if score_activations:
@@ -189,6 +189,9 @@ def evaluate_agents(agent_paths: List[str],
 
     metrics['other']['map_string'] = map_string
 
+    if activation_paths:
+        metrics['other']['activation_paths'] = activation_paths
+
     for episode in range(num_episodes):
         print(f'==Episode {episode}==')
         done = False
@@ -223,7 +226,7 @@ def evaluate_agents(agent_paths: List[str],
             for agent, a_dict in zip(agents, agent_dicts):
                 player = a_dict['player']
                 # If storing activations, indicate the current player
-                if activations_names:
+                if activation_paths:
                     activation_extractor.set_current_player(player)
 
                 # If scoring activations, indicate the current player
@@ -272,7 +275,7 @@ def evaluate_agents(agent_paths: List[str],
         if record_observations:
             observation_recorder.close()
 
-        if activations_names:
+        if activation_paths:
             len(activation_extractor.activations[player_names[0]])
             ep_activations = {}
             for player in player_names:
