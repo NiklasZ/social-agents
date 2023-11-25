@@ -2,6 +2,7 @@ import copy
 import time
 from typing import Dict, List, Tuple
 import numpy as np
+import dm_env
 import ray
 from ray.rllib import Policy
 from ray.rllib.models.torch.recurrent_net import RecurrentNetwork
@@ -16,13 +17,14 @@ import wandb
 
 from environment.helpers import validate_environment_roles
 from evaluation.observation_recorder import ObservationRecorder
+from src.deepmind.meltingpot.bot import get_config as get_bot_config, build as build_bot
 from src.environment.configs import PLAYABLE_MAPS, ENV_EVAL_METRIC_FUNCS, MELTING_POT_CONFIG_FUNCS
 from src.environment.wrappers import RenderCropper
 from src.evaluation.activations import ActivationExtractor, NeuronScorer
 from src.evaluation.arg_parser import get_evaluation_args
 from src.models.model_catalog import MODELS
 from src.utils.helpers import get_trailing_number, to_player_name, get_world_rgb_bounding_box, \
-    remove_prefix_from_files_in
+    remove_prefix_from_files_in, botConfig2Dict
 from src.utils.wandb_api import download_evaluation_state, make_dir_if_not_exists
 from utils.helpers import log_verbose
 
@@ -44,6 +46,12 @@ def evaluate(run_config: Dict):
 
     agent_paths = []
     agent_dicts = []
+
+    # Extract meltingpot bot names if provided
+    bot_names = []
+    if run_config['meltingpot_bots']:
+        for bot_config in run_config['meltingpot_bots']:
+            bot_names.append(bot_config['bot_name'])
 
     for idx, player_info in enumerate(run_config['players']):
         checkpoint_folder = f"checkpoint_{player_info['checkpoint']:06}"
@@ -94,7 +102,8 @@ def evaluate(run_config: Dict):
     base_eval_path = get_eval_path(run_config=run_config, timestamp=timestamp, env_name=agent_run_config['env'])
     evaluate_agents(agent_paths=agent_paths,
                     agent_dicts=agent_dicts,
-                    eval_path=base_eval_path)
+                    eval_path=base_eval_path,
+                    bot_names=bot_names)
 
     ray.shutdown()
     wandb.finish()
@@ -102,7 +111,21 @@ def evaluate(run_config: Dict):
 
 def evaluate_agents(agent_paths: List[str],
                     agent_dicts: List[Dict],
-                    eval_path: str):
+                    eval_path: str,
+                    bot_names: List[str]):
+    
+    # Load meltingpot bots if provided
+    bots: List[Policy] = []
+    bot_dicts: List[Dict] = []
+    n_agents = len(agent_paths)
+    for idx, bot_name in enumerate(bot_names):
+        bots.append(build_bot(bot_name))
+        bot_config = get_bot_config(bot_name)
+        bot_dict = botConfig2Dict(bot_config)
+        bot_dict['name'] = bot_name
+        bot_dict['player'] = f'player_{n_agents + idx}'
+        bot_dicts.append(bot_dict)
+
     # Restore agent policies
     agents: List[Policy] = []
     for agent_path, agent_dict in zip(agent_paths, agent_dicts):
@@ -121,7 +144,7 @@ def evaluate_agents(agent_paths: List[str],
     map_string = PLAYABLE_MAPS[run_config['env']][run_config['map_name']]['map']
     # agent_roles = [a['run_config']['agent_roles'][get_trailing_number(a['policy_id'])] for a in agent_dicts]
     env_config = MELTING_POT_CONFIG_FUNCS[run_config['env']](
-        roles=[a_d['role'] for a_d in agent_dicts],
+        roles=[a_d['role'] for a_d in agent_dicts] + [b_d['role'] for b_d in bot_dicts],
         play_map=map_string,
         env_settings=run_config['env_settings'])
 
@@ -136,10 +159,13 @@ def evaluate_agents(agent_paths: List[str],
     verbose = run_config['verbose']
     env_name = run_config['env']
 
-    policy_names = [f"{a['rllib_run_name']}.{a['checkpoint_name']}.{a['policy_id']}" for a in agent_dicts]
+    policy_names = [f"{a['rllib_run_name']}.{a['checkpoint_name']}.{a['policy_id']}" for a in agent_dicts] + [
+        f"{b['name']}" for b in bot_dicts]
     print(f"Evaluating policies: {', '.join(policy_names)} in {env_name}")
     matchup_path = f"{eval_path}/{'__VS__'.join(policy_names)}"
-    player_names = [a_d['player'] for a_d in agent_dicts]
+    player_names = [a_d['player'] for a_d in agent_dicts] 
+    bot_names = [b_d['player'] for b_d in bot_dicts]
+    player_and_bot_names = player_names + bot_names
 
     # If set, store activations from final layers
     if activation_paths:
@@ -192,10 +218,24 @@ def evaluate_agents(agent_paths: List[str],
     if activation_paths:
         metrics['other']['activation_paths'] = activation_paths
 
+    #create a list of all agents and bots
+    bots_and_agents = agents + bots
+
+    #a special timestep object used for bots
+    timestep : dm_env.TimeStep = None
+
     for episode in range(num_episodes):
         print(f'==Episode {episode}==')
         done = False
-        obs, _ = test_env.reset()
+        obs, _, timestep = test_env.reset()
+        new_timestep = dm_env.TimeStep(
+            step_type=timestep.step_type,
+            reward=timestep.reward,
+            discount=timestep.discount,
+            observation=timestep.observation[2]
+        )
+        timestep = new_timestep
+
 
         if record_episodes:
             test_env.start_video_recorder()
@@ -215,11 +255,15 @@ def evaluate_agents(agent_paths: List[str],
                 # Initial hidden and cell state
                 states[player] = agent.model.get_initial_state()
                 prev_actions[player] = 0
+            for bot, bot_name in zip(bots, bot_names):
+                # Initial hidden and cell state
+                states[bot_name] = bot.initial_state()
+                prev_actions[bot_name] = 0
 
         if record_observations:
             observation_recorder = ObservationRecorder(video_folder=video_path,
                                                        video_prefix=f'episode{episode}',
-                                                       frame_shapes={p: obs[p].shape for p in player_names},
+                                                       frame_shapes={p: obs[p].shape for p in player_and_bot_names},
                                                        frames_per_sec=recording_fps)
         while not done:
             actions = {}
@@ -246,13 +290,30 @@ def evaluate_agents(agent_paths: List[str],
                 log_verbose(f"{player}, {a_dict['policy_id']}, {action}", verbose)
                 actions[player] = action
 
-            obs, reward, terminated, truncated, infos = test_env.step(actions)
+            for bot, b_dict in zip(bots, bot_dicts):
+                player = b_dict['player']
+                action, state_out = bot.step(
+                    timestep=timestep,
+                    prev_state=states[player]
+                )
+                states[player] = state_out
+                actions[player] = action
+
+            obs, reward, terminated, truncated, infos, timestep = test_env.step(actions)
+            new_timestep = dm_env.TimeStep(
+                step_type=timestep.step_type,
+                reward=timestep.reward,
+                discount=timestep.discount,
+                observation=timestep.observation[2]
+            )
+            timestep = new_timestep
 
             deaths = {p: (np.max(ob) == 0).item() for p, ob in obs.items()}
 
             # General step metrics
             episode_metrics['rewards'].append({p: float(r.item()) for p, r in reward.items()})
-            episode_metrics['actions'].append({p: int(a.item()) for p, a in actions.items()})
+            episode_metrics['actions'].append({p: int(a.item()) if isinstance(a, np.int32) else a for p, a in
+                                               actions.items()})
             episode_metrics['deaths'].append(deaths)  # if a player is given an empty obs, it has recently been killed
 
             # Environment step metrics

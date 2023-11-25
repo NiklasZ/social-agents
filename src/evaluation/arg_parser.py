@@ -25,12 +25,19 @@ example_activation_structure = json.dumps({
     'alias': 'lstm_hidden',  # An alias to save the activations under
 })
 
+example_meltingpot_bots_structure = json.dumps({
+    'bot_name' : 'bot0',
+})  
+
 
 def get_evaluation_args(arg_str: Optional[str] = None):
     parser = argparse.ArgumentParser(description='King of the Hill Agent Evaluation')
     parser.add_argument('--players', type=str, required=True, nargs='+',
                         help='A list of JSON strings detailing which policies to play against each other in what roles.'
                              f"An example structure is: {example_players_structure}")
+    parser.add_argument('--meltingpot-bots', type=str, required=False, nargs='+',
+                        help='A list of JSON strings detailing which meltingpot bots to include in the evaluation'
+                             f"An example structure is: {example_meltingpot_bots_structure}", default=[])
     parser.add_argument('--episodes', type=int, required=False, default=1,
                         help='the number of episodes to evaluate')
     parser.add_argument('--record-episodes', action=argparse.BooleanOptionalAction, required=False, default=False,
@@ -70,6 +77,9 @@ def get_evaluation_args(arg_str: Optional[str] = None):
         check_json_has_fields(p.replace("\'", "\""), example_players_structure)
         player_infos.append(json.loads(p.replace("\'", "\"")))
     args.players = player_infos
+
+    # Load meltingpot bot JSONs
+    args.meltingpot_bots = [json.loads(b.replace("\'", "\"")) for b in args.meltingpot_bots]
 
     # Validate activation JSONs
     activation_infos = []

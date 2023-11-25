@@ -15,3 +15,4 @@ wandb
 /env
 /run.sh
 /.vscode
+/temp

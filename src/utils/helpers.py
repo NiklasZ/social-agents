@@ -9,7 +9,7 @@ import numpy as np
 from torch import Tensor
 
 from src.deepmind.examples.rllib.utils import MeltingPotEnv
-
+from src.deepmind.meltingpot.configs.bots import BotConfig
 
 # Gets trailing number from a string.
 # E.g "Bananas123" yields 123
@@ -58,7 +58,7 @@ def get_world_rgb_bounding_box(env: MeltingPotEnv) -> (int, int, int, int):
     """
     env.reset()
     action = env.action_space.sample()
-    _, _, _, _, info = env.step(action)
+    _, _, _, _, info, _ = env.step(action)
     player_id = list(info.keys())[0]
     world_rgb_arr = info[player_id]['WORLD.RGB']
     env.reset()
@@ -150,3 +150,16 @@ def check_json_has_fields(given_json: str, target_json: str):
     different_fields = target_fields.difference(given_fields)
     assert len(different_fields) == 0, (f"Given JSON '{given_json}' is missing the following fields: " +
                                         str(different_fields))
+    
+def botConfig2Dict(config: BotConfig):
+    """
+    Converts a bot config to a dictionary.
+    @param config: a bot config
+    @return: a dictionary representing the bot config
+    """
+    return {
+        'model_path': config.model_path,
+        'substrate': config.substrate,
+        'puppeteer_builder': config.puppeteer_builder,
+        'role': next(iter(config.roles)),
+    }

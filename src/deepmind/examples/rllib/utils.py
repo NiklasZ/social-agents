@@ -60,13 +60,13 @@ class MeltingPotEnv(multi_agent_env.MultiAgentEnv):
             utils.spec_to_space(self._env.action_spec()))
         super().__init__()
 
-    def reset(self) -> Tuple[MultiAgentDict, MultiAgentDict]:
+    def reset(self) -> Tuple[MultiAgentDict, MultiAgentDict, dm_env.TimeStep]:
         """See base class."""
         timestep = self._env.reset()
-        return upgrade_gym_to_gymnasium_reset(utils.timestep_to_observations(timestep))
+        return upgrade_gym_to_gymnasium_reset(utils.timestep_to_observations(timestep)) + (timestep,)
 
     def step(self, action_dict) -> Tuple[
-        MultiAgentDict, MultiAgentDict, MultiAgentDict, MultiAgentDict, MultiAgentDict]:
+        MultiAgentDict, MultiAgentDict, MultiAgentDict, MultiAgentDict, MultiAgentDict, dm_env.TimeStep]:
         """See base class."""
         actions = [action_dict[agent_id] for agent_id in self._ordered_agent_ids]
         timestep = self._env.step(actions)
@@ -78,7 +78,7 @@ class MeltingPotEnv(multi_agent_env.MultiAgentEnv):
         info = {f'player_{index}': info for index, info in enumerate(timestep.observation)}
 
         observations = utils.timestep_to_observations(timestep)
-        return upgrade_gym_to_gymnasium_step(observations, rewards, done, info)
+        return upgrade_gym_to_gymnasium_step(observations, rewards, done, info) + (timestep,)
 
     def close(self):
         """See base class."""
