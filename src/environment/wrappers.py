@@ -4,6 +4,7 @@ from collections import deque
 import gymnasium
 import numpy as np
 from ray.rllib.env import multi_agent_env
+from dm_env import TimeStep
 
 from gymnasium import spaces
 from ray.rllib.utils.typing import MultiAgentDict
@@ -71,15 +72,15 @@ class FullRGBObservationWrapper(BaseWrapper):
             p: obs_dict[p]['WORLD.RGB'][:self.world_height * self.sprite_size, -self.world_height * self.sprite_size:]
             for p in obs_dict.keys()}
 
-    def reset(self, *args, **kwargs) -> [MultiAgentDict, MultiAgentDict]:
+    def reset(self, *args, **kwargs) -> [MultiAgentDict, MultiAgentDict, TimeStep]:
         # modify obs
-        ob, info = self._env.reset()
-        return self.get_world_rgb(ob), info
+        ob, info, timestep = self._env.reset()
+        return self.get_world_rgb(ob), info, timestep
 
     def step(self, *args, **kwargs):
         # modify obs
-        ob, reward, terminated, truncated, info = self._env.step(*args, **kwargs)
-        return self.get_world_rgb(ob), reward, terminated, truncated, info
+        ob, reward, terminated, truncated, info, timestep = self._env.step(*args, **kwargs)
+        return self.get_world_rgb(ob), reward, terminated, truncated, info, timestep
 
 
 class RGBObservationWrapper(BaseWrapper):
@@ -92,13 +93,13 @@ class RGBObservationWrapper(BaseWrapper):
 
     def reset(self, *args, **kwargs) -> [MultiAgentDict, MultiAgentDict]:
         # modify obs
-        ob, info = self._env.reset()
-        return get_rgb(ob), info
+        ob, info, timestep = self._env.reset()
+        return get_rgb(ob), info, timestep
 
     def step(self, *args, **kwargs):
         # modify obs
-        ob, reward, terminated, truncated, info = self._env.step(*args, **kwargs)
-        return get_rgb(ob), reward, terminated, truncated, ob | info
+        ob, reward, terminated, truncated, info, timestep = self._env.step(*args, **kwargs)
+        return get_rgb(ob), reward, terminated, truncated, ob | info, timestep
 
 
 def get_rgb(obs_dict: Union[dict, spaces.Dict]):
@@ -132,18 +133,18 @@ class FrameStacker(BaseWrapper):
 
     def reset(self, *args, **kwargs):
         # modify obs
-        obs, info = self._env.reset()
+        obs, info, timestep = self._env.reset()
         for p in obs.keys():  # iterate players
             for _ in range(self.k):  # set each frame to be first observation
                 self.frames[p].append(obs[p])
-        return self._stack_obs(), info
+        return self._stack_obs(), info, timestep
 
     def step(self, *args, **kwargs):
         # modify obs
-        obs, reward, terminated, truncated, info = self._env.step(*args, **kwargs)
+        obs, reward, terminated, truncated, info, timestep = self._env.step(*args, **kwargs)
         for p in obs.keys():  # iterate players
             self.frames[p].append(obs[p])
-        return self._stack_obs(), reward, terminated, truncated, info
+        return self._stack_obs(), reward, terminated, truncated, info, timestep
 
     def _stack_obs(self):
         return {p: np.concatenate(self.frames[p], axis=2) for p in self.frames.keys()}
