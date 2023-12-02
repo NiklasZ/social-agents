@@ -17,6 +17,8 @@ python src/evaluation/evaluate.py \
   --players "{'policy_id':'policy0', 'run_id':'f541e_00000', 'checkpoint':20, 'role':'default'}" \
             "{'policy_id':'policy1', 'run_id':'f541e_00000', 'checkpoint':20, 'role':'default'}" \
   --meltingpot-bots "{'bot_name': 'territory__open__aggressor_0'}" \
+                    "{'bot_name': 'territory__open__aggressor_1'}" \
+                    "{'bot_name': 'territory__open__aggressor_2'}" \
   --record-episodes \
   --recording-fps 15
 
