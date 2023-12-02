@@ -7,7 +7,6 @@ import ray
 from ray.rllib import Policy
 from ray.rllib.models.torch.recurrent_net import RecurrentNetwork
 
-from gymnasium.wrappers import RecordVideo
 from datetime import datetime
 import os
 import glob
@@ -17,14 +16,14 @@ import wandb
 
 from environment.helpers import validate_environment_roles
 from evaluation.observation_recorder import ObservationRecorder
-from src.deepmind.meltingpot.bot import get_config as get_bot_config, build as build_bot
 from src.environment.configs import PLAYABLE_MAPS, ENV_EVAL_METRIC_FUNCS, MELTING_POT_CONFIG_FUNCS
 from src.environment.wrappers import RenderCropper
 from src.evaluation.activations import ActivationExtractor, NeuronScorer
 from src.evaluation.arg_parser import get_evaluation_args
 from src.models.model_catalog import MODELS
 from src.utils.helpers import get_trailing_number, to_player_name, get_world_rgb_bounding_box, \
-    remove_prefix_from_files_in, botConfig2Dict
+    remove_prefix_from_files_in
+from src.utils.bot_eval_helpers import load_bot_configs, load_bot_policies, Bots_Stepper, CustomRecordVideo as RecordVideo
 from src.utils.wandb_api import download_evaluation_state, make_dir_if_not_exists
 from utils.helpers import log_verbose
 
@@ -115,16 +114,8 @@ def evaluate_agents(agent_paths: List[str],
                     bot_names: List[str]):
     
     # Load meltingpot bots if provided
-    bots: List[Policy] = []
-    bot_dicts: List[Dict] = []
-    n_agents = len(agent_paths)
-    for idx, bot_name in enumerate(bot_names):
-        bots.append(build_bot(bot_name))
-        bot_config = get_bot_config(bot_name)
-        bot_dict = botConfig2Dict(bot_config)
-        bot_dict['name'] = bot_name
-        bot_dict['player'] = f'player_{n_agents + idx}'
-        bot_dicts.append(bot_dict)
+    bots = load_bot_policies(bot_names)
+    bot_dicts = load_bot_configs(bot_names, starting_idx=len(agent_paths))
 
     # Restore agent policies
     agents: List[Policy] = []
@@ -159,8 +150,8 @@ def evaluate_agents(agent_paths: List[str],
     verbose = run_config['verbose']
     env_name = run_config['env']
 
-    policy_names = [f"{a['rllib_run_name']}.{a['checkpoint_name']}.{a['policy_id']}" for a in agent_dicts] + [
-        f"{b['name']}" for b in bot_dicts]
+    policy_names = [f"{a['rllib_run_name']}.{a['checkpoint_name']}.{a['policy_id']}" for a in agent_dicts] + \
+        [f"{b['name']}" for b in bot_dicts]
     print(f"Evaluating policies: {', '.join(policy_names)} in {env_name}")
     matchup_path = f"{eval_path}/{'__VS__'.join(policy_names)}"
     player_names = [a_d['player'] for a_d in agent_dicts] 
@@ -218,9 +209,6 @@ def evaluate_agents(agent_paths: List[str],
     if activation_paths:
         metrics['other']['activation_paths'] = activation_paths
 
-    #create a list of all agents and bots
-    bots_and_agents = agents + bots
-
     #a special timestep object used for bots
     timestep : dm_env.TimeStep = None
 
@@ -228,14 +216,12 @@ def evaluate_agents(agent_paths: List[str],
         print(f'==Episode {episode}==')
         done = False
         obs, _, timestep = test_env.reset()
-        new_timestep = dm_env.TimeStep(
-            step_type=timestep.step_type,
-            reward=timestep.reward,
-            discount=timestep.discount,
-            observation=timestep.observation[2]
-        )
-        timestep = new_timestep
 
+        # init a class instance for stepping meltingpot provided bots
+        bots_stepper = Bots_Stepper(
+            bots=bots, 
+            bot_configs=bot_dicts, 
+            starting_idx=len(agent_dicts))
 
         if record_episodes:
             test_env.start_video_recorder()
@@ -255,10 +241,6 @@ def evaluate_agents(agent_paths: List[str],
                 # Initial hidden and cell state
                 states[player] = agent.model.get_initial_state()
                 prev_actions[player] = 0
-            for bot, bot_name in zip(bots, bot_names):
-                # Initial hidden and cell state
-                states[bot_name] = bot.initial_state()
-                prev_actions[bot_name] = 0
 
         if record_observations:
             observation_recorder = ObservationRecorder(video_folder=video_path,
@@ -290,23 +272,12 @@ def evaluate_agents(agent_paths: List[str],
                 log_verbose(f"{player}, {a_dict['policy_id']}, {action}", verbose)
                 actions[player] = action
 
-            for bot, b_dict in zip(bots, bot_dicts):
-                player = b_dict['player']
-                action, state_out = bot.step(
-                    timestep=timestep,
-                    prev_state=states[player]
-                )
-                states[player] = state_out
-                actions[player] = action
+            # Step bots
+            bots_stepper.step(timestep)
+            actions.update(bots_stepper.get_actions())
+            states.update(bots_stepper.get_states())
 
             obs, reward, terminated, truncated, infos, timestep = test_env.step(actions)
-            new_timestep = dm_env.TimeStep(
-                step_type=timestep.step_type,
-                reward=timestep.reward,
-                discount=timestep.discount,
-                observation=timestep.observation[2]
-            )
-            timestep = new_timestep
 
             deaths = {p: (np.max(ob) == 0).item() for p, ob in obs.items()}
 
