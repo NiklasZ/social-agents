@@ -16,3 +16,4 @@ wandb
 /run.sh
 /.vscode
 /temp
+/run
