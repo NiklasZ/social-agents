@@ -11,9 +11,13 @@ from torch import Tensor
 from src.deepmind.examples.rllib.utils import MeltingPotEnv
 
 
-# Gets trailing number from a string.
-# E.g "Bananas123" yields 123
 def get_trailing_number(s: str) -> int:
+    """
+    Gets the trailing number from a string.
+    E.g "Bananas123" yields 123
+    @param s:
+    @return:
+    """
     m = re.search(r'\d+$', s)
     if m:
         return int(m.group())
@@ -21,27 +25,27 @@ def get_trailing_number(s: str) -> int:
         raise Exception(f"No number found at the end of '{s}'")
 
 
-# Maps a player name to a corresponding main policy.
-#  E.g "player_0" --> "policy0"
-def to_main_policy_name(player_name: str):
-    regex_expr = r'^player_\d+$'
-    m = re.search(regex_expr, player_name)
-    if m:
-        return f"policy{get_trailing_number(player_name)}"
-    else:
-        raise Exception(f'Expected player name matching {regex_expr}, but got {player_name}')
-
-
 # Maps a policy name to a player
-# E.g "policy0" --> "player_0"
-# E.g "policy11_v0" --> "player_11"
 def to_player_name(policy_name: str):
-    regex_expr = r'^policy\d+(_v\d+)?$'
-    m = re.search(regex_expr, policy_name)
-    if m:
-        return f"player_{get_trailing_number(policy_name.split('_')[0])}"
-    else:
-        raise Exception(f'Expected policy name matching {regex_expr}, but got {policy_name}')
+    """
+    Maps a policy name to a player name.
+    @param policy_name:
+    @return:
+    """
+    return f"player_{get_player_idx(policy_name)}"
+
+
+def get_player_idx(policy_id: str) -> int:
+    """
+    Gets the player index from a policy id.
+    Example patterns: "policy_123" or "policy_123_p456" or "policy_123_p456_v789"
+    @param policy_id:
+    @return:
+    """
+    pattern = r'policy_(\d+)(?:_p\d+)?(?:_v\d+)?'
+    match = re.search(pattern, policy_id)
+    assert match, f'Policy ID {policy_id} does not match expected pattern: {pattern}'
+    return int(match.group(1))
 
 
 # Note, only bothered implementing this in 2d case. More dimensions should be done recursively.

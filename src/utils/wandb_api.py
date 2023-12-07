@@ -30,11 +30,11 @@ def find_run_folder(all_runs_dir: str) -> str:
 
 def download_config(run_config: Dict, run) -> (Dict, Dict):
     combined_config = run.config
-    run_config = combined_config['run_config'] | run_config  # merge configs
-    run_config = patch_run_config(run_config)  # add any missing properties introduced in later versions
-    config = get_alg_config(run_config, training=False)
+    out_config = combined_config['run_config'] | run_config  # merge configs
+    out_config = patch_run_config(out_config)  # add any missing properties introduced in later versions
+    config = get_alg_config(out_config, training=False)
     print('Downloaded environment and run configs')
-    return config, run_config
+    return config, out_config
 
 
 def download_train_state(rllib_path: str,

@@ -11,6 +11,7 @@ from src.models.model_catalog import get_model
 from src.training.callbacks.enhanced_self_play import EnhancedSelfPlayCallback
 from src.training.callbacks.pooling_self_play import PoolingSelfPlayCallback
 from src.utils.helpers import get_trailing_number
+from training.callbacks.population_self_play import PopulationSelfPlayCallback, training_policy_mapping_fn
 
 
 def patch_run_config(run_config: Dict) -> Dict:
@@ -45,7 +46,7 @@ def get_alg_config(run_config: Dict, training=True) -> Dict:
     map_name = run_config['map_name']
     if map_name not in PLAYABLE_MAPS[run_config['env']]:
         raise Exception(f"Map named {map_name} not found."
-                        f" Available maps are: {', '.join(list(PLAYABLE_MAPS.keys()))}")
+                        f" Available maps are: {', '.join(list(PLAYABLE_MAPS[run_config['env']].keys()))}")
     else:
         play_map = PLAYABLE_MAPS[run_config['env']][map_name]
     # Get model description
@@ -81,7 +82,8 @@ def get_alg_config(run_config: Dict, training=True) -> Dict:
             ) for i in range(0, len(env_config['roles']))}
             config['multiagent'] = {
                 'policies': policies,
-                'policy_mapping_fn': lambda agent_id, episode, worker, **kwargs: f'policy_{get_trailing_number(agent_id)}',
+                'policy_mapping_fn': lambda agent_id, episode, worker,
+                                            **kwargs: f'policy_{get_trailing_number(agent_id)}',
                 'count_steps_by': 'env_steps',
             }
         # Every agent shares the same policy
@@ -121,6 +123,23 @@ def get_alg_config(run_config: Dict, training=True) -> Dict:
             }
         case _:
             raise Exception(f"Model sharing mode {run_config['model_sharing']} not recognised.")
+
+    # Set policy config for population-self-play case:
+    if run_config['population_self_play']:
+        assert run_config[
+                   'model_sharing'] == 'independent', 'Population self-play only supports independent model sharing'
+        policies = {f'policy_{player}_p{pop}': PolicySpec(
+            policy_class=None,  # use default policy
+            observation_space=test_env.observation_space[f'player_{player}'],
+            action_space=test_env.action_space[f'player_{player}'],
+            config={},
+        ) for player in range(len(env_config['roles']))
+            for pop in range(run_config['population_self_play']['population_per'])}
+        config['multiagent'] = {
+            'policies': policies,
+            'policy_mapping_fn': training_policy_mapping_fn,
+            'count_steps_by': 'env_steps',
+        }
 
     # Set number of GPUs to use
     config['num_gpus'] = run_config['num_gpus']
@@ -165,6 +184,8 @@ def get_alg_config(run_config: Dict, training=True) -> Dict:
         chosen_callbacks.append(EnhancedSelfPlayCallback)
     elif run_config['pooled_self_play'] and training:
         chosen_callbacks.append(PoolingSelfPlayCallback)
+    elif run_config['population_self_play'] and training:
+        chosen_callbacks.append(PopulationSelfPlayCallback)
 
     config['callbacks'] = make_multi_callbacks(chosen_callbacks)
 

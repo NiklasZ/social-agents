@@ -67,9 +67,11 @@ def get_evaluation_args(arg_str: Optional[str] = None):
     parser.add_argument('--eval-folder', type=str, required=False, default='',
                         help='Add a custom sub-folder to add to the evaluation path, '
                              'changing it to "evaluation/eval_games/<env_name>/<sub-folder>/<run-id>"')
+    parser.add_argument('--greedy-actions', action=argparse.BooleanOptionalAction, required=False,
+                        default=False,
+                        help='Set for policies to always take the greedily take the most probable action')
 
     args = parser.parse_args(shlex.split(arg_str)) if arg_str else parser.parse_args()
-
 
     # Validate player JSONs
     player_infos = []

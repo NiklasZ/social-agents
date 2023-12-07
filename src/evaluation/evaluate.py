@@ -24,6 +24,8 @@ from src.models.model_catalog import MODELS
 from src.utils.helpers import get_trailing_number, to_player_name, get_world_rgb_bounding_box, \
     remove_prefix_from_files_in
 from src.utils.bot_eval_helpers import load_bot_configs, load_bot_policies, Bots_Stepper
+from src.utils.helpers import get_world_rgb_bounding_box, \
+    remove_prefix_from_files_in, get_player_idx
 from src.utils.wandb_api import download_evaluation_state, make_dir_if_not_exists
 from utils.helpers import log_verbose
 
@@ -73,7 +75,7 @@ def evaluate(run_config: Dict):
         # Sanity-check that the role of the agent matches the role it was trained on.
         evaluation_role = training_role = a_d['role']
         if a_d['run_config']['model_sharing'] == 'independent':
-            agent_training_idx = get_trailing_number(a_d['policy_id'])
+            agent_training_idx = get_player_idx(a_d['policy_id'])
             training_role = a_d['run_config']['agent_roles'][agent_training_idx]
 
         elif a_d['run_config']['model_sharing'] == 'one-per-role':
@@ -112,7 +114,7 @@ def evaluate_agents(agent_paths: List[str],
                     agent_dicts: List[Dict],
                     eval_path: str,
                     bot_names: List[str]):
-    
+
     # Load meltingpot bots if provided
     bots = load_bot_policies(bot_names)
     bot_dicts = load_bot_configs(bot_names, starting_idx=len(agent_paths))
@@ -154,7 +156,7 @@ def evaluate_agents(agent_paths: List[str],
         [f"{b['name']}" for b in bot_dicts]
     print(f"Evaluating policies: {', '.join(policy_names)} in {env_name}")
     matchup_path = f"{eval_path}/{'__VS__'.join(policy_names)}"
-    player_names = [a_d['player'] for a_d in agent_dicts] 
+    player_names = [a_d['player'] for a_d in agent_dicts]
     bot_names = [b_d['player'] for b_d in bot_dicts]
     player_and_bot_names = player_names + bot_names
 
@@ -199,7 +201,7 @@ def evaluate_agents(agent_paths: List[str],
     # Copy all agent info that is simple string identifiers.
     metrics['other']['agent_info'] = [{k: v for k, v in a_d.items() if isinstance(v, str)} for a_d in
                                       agent_dicts]
-    
+
     # Copy all bot info that is simple string identifiers.
     metrics['other']['bot_info'] = [{k: v for k, v in b_d.items() if isinstance(v, str)} for b_d in bot_dicts]
 
@@ -208,6 +210,7 @@ def evaluate_agents(agent_paths: List[str],
     metrics['other']['observation_position_px'] = {'x': obs_x, 'y': obs_y, 'width': obs_width, 'height': obs_height}
 
     metrics['other']['map_string'] = map_string
+    metrics['other']['environment'] = agent_dicts[0]['run_config']['env']
 
     if activation_paths:
         metrics['other']['activation_paths'] = activation_paths
@@ -223,8 +226,8 @@ def evaluate_agents(agent_paths: List[str],
 
         # init a class instance for stepping meltingpot provided bots
         bots_stepper = Bots_Stepper(
-            bots=bots, 
-            bot_configs=bot_dicts, 
+            bots=bots,
+            bot_configs=bot_dicts,
             starting_idx=len(agent_dicts))
 
         if record_episodes:
@@ -267,7 +270,8 @@ def evaluate_agents(agent_paths: List[str],
                 if isinstance(agent.model, RecurrentNetwork):
                     action, state_out, _ = agent.compute_single_action(obs=obs[player],
                                                                        state=states[player],
-                                                                       prev_action=prev_actions[player])
+                                                                       prev_action=prev_actions[player],
+                                                                       explore=not run_config['greedy_actions'])
                     states[player] = state_out
                     prev_actions[player] = action
                 else:
@@ -283,7 +287,7 @@ def evaluate_agents(agent_paths: List[str],
 
             obs, reward, terminated, truncated, infos = test_env.step(actions)
             timestep = test_env.get_dmlab2d_timestep()
-            
+
             deaths = {p: (np.max(ob) == 0).item() for p, ob in obs.items()}
 
             # General step metrics

@@ -25,7 +25,9 @@ def parse_aws_hyperparameters(parameters: dict = None) -> List[str]:
     arg_list = ['new'] + dict_to_argparser_args(parameters)
     # Sagemaker parameter JSONs keeps every value as a string
     arg_list = [a for a in arg_list if a != 'True']  # we need to remove the 'True' string for flags.
-    arg_list = [s for a in arg_list for s in a.split(' ')]  # we need to split any multi-argument command.
+    # we need to split any multi-argument commands. An exception is made for JSON strings which contain "{}"
+    arg_list = [s for a in arg_list for s in (a.split(' ') if '{' not in a else [a])]
+    print(f'Parsed arguments: {arg_list}')
     return arg_list
 
 

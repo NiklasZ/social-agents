@@ -1,3 +1,4 @@
+from typing import Mapping
 import numpy as np
 import ray
 from ray.tune import tune
@@ -7,6 +8,7 @@ from src.training.callbacks.pooling_self_play import PolicyPoolManager
 from src.training.callbacks.trial_state_logger import PrintResultCallback
 from src.training.wandb_logger_v2 import AnotherWandbLoggerCallback
 from src.utils.generate_config import get_alg_config
+from training.callbacks.population_self_play import PopulationManager, has_at_least_one_policy_per_player
 
 
 # TODO make wandb optional
@@ -39,6 +41,13 @@ def train(run_config: dict):
         #                                                          )])
     else:
         config = get_alg_config(run_config)
+
+        stopping_conditions = []
+        stopping_func = lambda trial_id, result: any([condition(trial_id, result) for condition in stopping_conditions])
+        stop_afer_k_iterations = lambda trial_id, result: result['training_iteration'] >= run_config[
+            'training_iterations']
+        stopping_conditions.append(stop_afer_k_iterations)
+
         # Set up policy score tracking across workers
         if run_config['generalising_self_play']:
             manager = PolicyScorer.options(name='policy_scorer').remote('av')
@@ -46,11 +55,21 @@ def train(run_config: dict):
         if run_config['pooled_self_play']:
             manager = PolicyPoolManager.options(name='policy_manager').remote(config, run_config)
 
+        if run_config['population_self_play']:
+            manager = PopulationManager.options(name='population_manager').remote(config, run_config)
+
+            # Stop when we no longer have a training policy per player
+            def stop_when_out_of_pops(trial_id: str, result: Mapping) -> bool:
+                return not has_at_least_one_policy_per_player(list(result['curriculum_avg_rewards'].keys()),
+                                                              len(run_config['agent_roles']))
+
+            stopping_conditions.append(stop_when_out_of_pops)
+
         print(f"Training for {run_config['training_iterations']} iterations")
 
         results = tune.run(
             agent_algorithm,
-            stop={'training_iteration': run_config['training_iterations']},
+            stop=stopping_func,  # {'training_iteration': run_config['training_iterations']},
             config=config,
             metric='episode_reward_mean',
             local_dir=rllib_path,
@@ -67,7 +86,8 @@ def train(run_config: dict):
                                            # dictionary. Not sure why, but these keys are still in there, so this is at
                                            # worst a bit redundant.
                                            config={'run_config': run_config, 'full_config': config},
-                                           save_checkpoints=True
+                                           save_checkpoints=True,
+                                           id=run_config['run_id'],
                                            ),
                 PrintResultCallback()
             ]

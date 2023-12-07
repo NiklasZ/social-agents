@@ -497,6 +497,7 @@ def get_config(roles=None,
                                max_width=config.max_width,
                                min_height=config.min_height,
                                max_height=config.max_height)
+  config.coin_colours = env_settings['coin_colours'][:len(config.roles)] if env_settings else None
   config.lab2d_settings_builder = build
   config.lab2d_settings = build(config.roles, config)
 
@@ -510,7 +511,8 @@ def build(
   """Build the coins substrate given player roles."""
   assert len(roles) == MANDATED_NUM_PLAYERS, "Wrong number of players"
   # Randomly choose colors.
-  coin_type_a, coin_type_b = random.sample(tuple(COIN_PALETTES), k=2)
+
+  coin_type_a, coin_type_b = config.coin_colours or random.sample(tuple(COIN_PALETTES), k=2)
 
   # Manually build avatar config.
   num_players = len(roles)

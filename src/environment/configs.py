@@ -1,4 +1,5 @@
 from environment.clean_up.maps import CLEANUP_MAPS
+from environment.coins.config import COIN_DEFAULT_CONFIG
 from environment.coins.maps import COINS_MAPS
 from environment.prisoners_dilemma_arena.maps import PRISONERS_DILEMMA_IN_THE_MATRIX_ARENA_MAPS
 from environment.territory_rooms.maps import TERRITORY_ROOMS_MAPS
@@ -26,7 +27,7 @@ from src.deepmind.meltingpot.configs.substrates.coins import get_config as get_c
 DEFAULT_ENV_SETTINGS = {
     'allelopathic_harvest_open': None,
     'cleanup': None,
-    'coins': None,
+    'coins': COIN_DEFAULT_CONFIG,
     'king_of_the_hill': KING_OF_THE_HILL_DEFAULT_CONFIG,
     'predator_and_prey_open': None,
     'prisoners_dilemma_arena': None,

@@ -12,4 +12,8 @@ wandb
 /.pytest_cache/
 /eval_games/
 /analysis/.ipynb_checkpoints/
+/analysis/example_outputs/
 /.git
+# Skips over saved models
+/src/deepmind/meltingpot/assets/
+src/analysis/example_outputs

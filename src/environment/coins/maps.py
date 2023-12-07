@@ -20,4 +20,24 @@ COINS_MAPS = {
                        "coins environment map actually has randomly chosen dimensions, which this default shape does"
                        "not capture.",
     },
+
+    '13x13_minified': {
+        'map': """
+            WWWWWWWWWWWWW
+            WCCCCCCCCCCCW
+            WCCCCCCCCC_CW
+            WCCCCCCCCCCCW
+            WCCCCCCCCCCCW
+            WCCCCCCCCCCCW
+            WCCCCCCCCCCCW
+            WCCCCCCCCCCCW
+            WCCCCCCCCCCCW
+            WCCCCCCCCCCCW
+            WC_CCCCCCCCCW
+            WCCCCCCCCCCCW
+            WWWWWWWWWWWWW
+
+            """,
+        'description': "Smaller map to force more interaction between agents",
+    }
 }

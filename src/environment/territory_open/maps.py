@@ -25,6 +25,28 @@ TERRITORY_OPEN_MAPS = {
                 |,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,|
                 L=====================================J
                 """,
-        'description': "copy of the default map provided by DeepMind's Melting Pot Environment" 
+        'description': "copy of the default map provided by DeepMind's Melting Pot Environment"
+    },
+    '15x15_minified': {
+        'map': """
+        F=============T
+        |,RR,,RR,,,,,R|
+        |,R,,,,,R,,,R,|
+        |,,,R,,,,,,,R,|
+        |RR,,,,,,,,,R,|
+        |,R,,RRR,,,,,,|
+        |,R,,,,,,,,,,,|
+        |,,RR,R,,,,,,,|
+        |,,,,,,R,,RR,,|
+        |,,,,R,,,,,,,,|
+        |,,,,,,RR,R,,,|
+        |,RR,,,,,,,,,,|
+        |,,,,,,,,,,,,,|
+        |,,,,RR,R,,,P,|
+        |,R,P,P,,,P,,,|
+        L=============J
+        """,
+        'description': "copy of the default map provided by DeepMind's Melting Pot Environment"
+
     }
 }

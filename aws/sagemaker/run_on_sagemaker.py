@@ -4,28 +4,38 @@
 # See https://docs.aws.amazon.com/sagemaker/latest/APIReference/API_CreateTrainingJob.html
 # and https://medium.com/@smertatli/aws-sagemaker-is-one-of-the-most-advanced-machine-learning-services-in-the-cloud-world-46ff67d45c0
 # for configuration guidance
-
+import json
 from datetime import datetime
 import boto3
 import os
 
-from environment.configs import DEFAULT_ENV_SETTINGS, ENV_ALIASES
+from src.environment.configs import DEFAULT_ENV_SETTINGS, ENV_ALIASES
 from src.training.arg_parser import get_train_args
 from src.training.train_sagemaker import parse_aws_hyperparameters
+from src.utils.generate_config import get_alg_config
 
 # Training parameters
-hyperparameters = {'num-gpus': 0.5,
+hyperparameters = {'num-gpus': 1,
                    'num-workers': 4,
-                   'env': 'terro',
+                   'env': 'coins',
                    'agent-roles': 'default default',
-                   'num-gpus-per-worker': 0.1,
-                   'map-name': '15x15_minified',
+                   'num-gpus-per-worker': 0,
+                   'map-name': '13x13_minified',
                    'model-name': 'baseline_cnn_lstm',
-                   'episodes-per-training-iteration': 4,
+                   'episodes-per-training-iteration': 8,
                    'checkpoint-frequency': 100,
                    'model-sharing': 'independent',
-                   'training-iterations': 1500,
+                   'training-iterations': 5000,
+                   'population-self-play': json.dumps({
+                       'population_per': 8,
+                       'min_games_against_new_opponent': 3,
+                       'recent_reward_window': 30,
+                       'curriculum_end_timesteps': 100,
+                       'sufficient_improved_population_ratio': 0.5,
+                       'policy_improvement_factor': 1.10
+                   }).replace('\'', '"'),
                    }
+
 
 # What machine type to run.
 resource_config = {
@@ -68,7 +78,8 @@ hyperparameters = {k: str(v) for k, v in hyperparameters.items()}
 
 # Parse and validate the hyperparameters. Saves some time by checking for basic errors before launching a job
 training_args = parse_aws_hyperparameters(hyperparameters)
-_ = vars(get_train_args(training_args))
+run_config = vars(get_train_args(training_args))
+_ = get_alg_config(run_config)
 
 sagemaker_client = boto3.client(
     "sagemaker",

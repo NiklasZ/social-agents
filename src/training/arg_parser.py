@@ -1,5 +1,6 @@
 import argparse
 import json
+from datetime import datetime
 from time import time
 from typing import List
 
@@ -32,6 +33,22 @@ default_pooled_self_play_settings = json.dumps(
      }
 )
 
+default_population_self_play_settings = json.dumps({
+    'population_per': 4,  # number of agents per player, role or overall. This depends on the model sharing mode.
+    'min_games_against_new_opponent': 3,  # how many times to pick new opponents before sampling from older ones again.
+    # how many recent rewards to consider when calculating the average reward against an opponent.
+    'recent_reward_window': 5,
+    # rate of average reward improvement needed for a policy to considered sufficiently improved in a curriculum iteration.
+    # E.g if a policy has an initial average episode reward of 10, and the improvement factor is 1.1,
+    # then the policy needs reach a reward of 11.
+    'policy_improvement_factor': 1.1,
+    # ratio of policies that need to be sufficiently improved in order for the population to move to the next curriculum iteration.
+    'sufficient_improved_population_ratio': 0.5,
+    # After a sufficient number of policies have improved, control how many more timesteps the remaining
+    # policies have to meet their improvement target before dropping them.
+    'curriculum_end_timesteps': 50,
+})
+
 # Here the configurations have the following meaning:
 MODEL_SHARING_OPTIONS = ['shared',  # all agents have the same underlying model.
                          'one-per-role',  # all agents share a model for each type of role defined by melting pot.
@@ -45,6 +62,30 @@ def merge_input_json_with_default_json(custom_json: str, default_json: str, sett
         if key not in default_settings:
             raise Exception(f"Unknown f{setting_name} key '{key}'")
     return default_settings | custom_settings
+
+
+def generate_run_id(run_name):
+    """
+    Generates a run id based on the current time and the run name.
+    @param run_name:
+    @return:
+    """
+    # Reference time: January 1, 2022, in milliseconds - DO NOT CHANGE
+    reference_date = datetime(2022, 1, 1)
+    reference_time_milliseconds = int(reference_date.timestamp() * 1000)
+
+    # Current time in milliseconds
+    current_time_milliseconds = int(time() * 1000)
+
+    # Time difference in milliseconds
+    time_difference = current_time_milliseconds - reference_time_milliseconds
+
+    # Convert to hexadecimal
+    hex_time = hex(time_difference)[2:]  # [2:] to remove the '0x' prefix
+
+    # Combine with the run name
+    run_id = f'{run_name}-{hex_time}'
+    return run_id
 
 
 def get_train_args(arg_list: List[str] = None):
@@ -104,6 +145,9 @@ def get_train_args(arg_list: List[str] = None):
     parser_new.add_argument('--pooled-self-play', type=str, required=False, default=None,
                             help='settings JSON for the pooled-self-play. '
                                  f"Default is: {default_pooled_self_play_settings}")
+    parser_new.add_argument('--population-self-play', type=str, required=False, default=None,
+                            help='Lets agents learn together as a population. '
+                                 f"Default setting for this is: {default_population_self_play_settings}")
     parser_new.add_argument('--episodes-per-training-iteration', type=int, required=False, default=4,
                             help='how many episodes to collect before training. Affects the training batch size')
     parser_new.add_argument('--framework', type=str, required=False, default='torch',
@@ -125,7 +169,8 @@ def get_train_args(arg_list: List[str] = None):
     args = parser.parse_args(arg_list)
 
     if args.command == 'new':
-        args.rllib_run_name = f'{args.run_name}-{int(time())}'  # Attach initial run timestamp for convenience later
+        args.run_id = generate_run_id(args.run_name)
+        args.rllib_run_name = args.run_id # Kept for backwards compatibility - should be removed later
 
         if args.env not in DEFAULT_ENV_SETTINGS:
             if args.env in ENV_ALIASES:
@@ -157,6 +202,9 @@ def get_train_args(arg_list: List[str] = None):
         if args.framework != 'torch':
             raise Exception("Deep learning framework must be 'torch' as 'tf2' is not supported yet.")
 
+        if sum(bool(e) for e in [args.pooled_self_play, args.generalising_self_play, args.pooled_self_play]) > 1:
+            raise Exception('Only one self-play callback method can be enabled at a time.')
+
         if args.pooled_self_play or args.generalising_self_play:
             raise Exception('Advanced self-play methods are outdated and need to be re-implemented.')
 
@@ -168,6 +216,11 @@ def get_train_args(arg_list: List[str] = None):
             args.pooled_self_play = merge_input_json_with_default_json(args.pooled_self_play,
                                                                        default_pooled_self_play_settings,
                                                                        'pooled_self_play')
+
+        if args.population_self_play:
+            args.population_self_play = merge_input_json_with_default_json(args.population_self_play,
+                                                                           default_population_self_play_settings,
+                                                                           'population_self_play')
 
         if args.model_sharing not in MODEL_SHARING_OPTIONS:
             raise Exception(f"Model sharing must be one of {MODEL_SHARING_OPTIONS}")
