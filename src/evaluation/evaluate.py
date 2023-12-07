@@ -6,7 +6,7 @@ import dm_env
 import ray
 from ray.rllib import Policy
 from ray.rllib.models.torch.recurrent_net import RecurrentNetwork
-
+from gymnasium.wrappers import RecordVideo
 from datetime import datetime
 import os
 import glob
@@ -23,7 +23,7 @@ from src.evaluation.arg_parser import get_evaluation_args
 from src.models.model_catalog import MODELS
 from src.utils.helpers import get_trailing_number, to_player_name, get_world_rgb_bounding_box, \
     remove_prefix_from_files_in
-from src.utils.bot_eval_helpers import load_bot_configs, load_bot_policies, Bots_Stepper, CustomRecordVideo as RecordVideo
+from src.utils.bot_eval_helpers import load_bot_configs, load_bot_policies, Bots_Stepper
 from src.utils.wandb_api import download_evaluation_state, make_dir_if_not_exists
 from utils.helpers import log_verbose
 
@@ -199,6 +199,9 @@ def evaluate_agents(agent_paths: List[str],
     # Copy all agent info that is simple string identifiers.
     metrics['other']['agent_info'] = [{k: v for k, v in a_d.items() if isinstance(v, str)} for a_d in
                                       agent_dicts]
+    
+    # Copy all bot info that is simple string identifiers.
+    metrics['other']['bot_info'] = [{k: v for k, v in b_d.items() if isinstance(v, str)} for b_d in bot_dicts]
 
     # Get bounding box around environment
     obs_x, obs_y, obs_width, obs_height = get_world_rgb_bounding_box(env_constructor(env_config))
@@ -215,7 +218,8 @@ def evaluate_agents(agent_paths: List[str],
     for episode in range(num_episodes):
         print(f'==Episode {episode}==')
         done = False
-        obs, _, timestep = test_env.reset()
+        obs, infos = test_env.reset()
+        timestep = test_env.get_dmlab2d_timestep()
 
         # init a class instance for stepping meltingpot provided bots
         bots_stepper = Bots_Stepper(
@@ -277,8 +281,9 @@ def evaluate_agents(agent_paths: List[str],
             actions.update(bots_stepper.get_actions())
             states.update(bots_stepper.get_states())
 
-            obs, reward, terminated, truncated, infos, timestep = test_env.step(actions)
-
+            obs, reward, terminated, truncated, infos = test_env.step(actions)
+            timestep = test_env.get_dmlab2d_timestep()
+            
             deaths = {p: (np.max(ob) == 0).item() for p, ob in obs.items()}
 
             # General step metrics

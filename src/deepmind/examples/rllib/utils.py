@@ -58,15 +58,18 @@ class MeltingPotEnv(multi_agent_env.MultiAgentEnv):
             remove_world_observations=True)
         self.action_space = self._convert_spaces_tuple_to_dict(
             utils.spec_to_space(self._env.action_spec()))
+        self.dmlab2d_timestep = None
         super().__init__()
 
-    def reset(self) -> Tuple[MultiAgentDict, MultiAgentDict, dm_env.TimeStep]:
+    def reset(self) -> Tuple[MultiAgentDict, MultiAgentDict]:
         """See base class."""
         timestep = self._env.reset()
-        return upgrade_gym_to_gymnasium_reset(utils.timestep_to_observations(timestep)) + (timestep,)
-
+        obs, info = upgrade_gym_to_gymnasium_reset(utils.timestep_to_observations(timestep))
+        self.dmlab2d_timestep = timestep
+        return obs, info
+    
     def step(self, action_dict) -> Tuple[
-        MultiAgentDict, MultiAgentDict, MultiAgentDict, MultiAgentDict, MultiAgentDict, dm_env.TimeStep]:
+        MultiAgentDict, MultiAgentDict, MultiAgentDict, MultiAgentDict, MultiAgentDict]:
         """See base class."""
         actions = [action_dict[agent_id] for agent_id in self._ordered_agent_ids]
         timestep = self._env.step(actions)
@@ -78,7 +81,9 @@ class MeltingPotEnv(multi_agent_env.MultiAgentEnv):
         info = {f'player_{index}': info for index, info in enumerate(timestep.observation)}
 
         observations = utils.timestep_to_observations(timestep)
-        return upgrade_gym_to_gymnasium_step(observations, rewards, done, info) + (timestep,)
+        observations, rewards, done, truncated, info =  upgrade_gym_to_gymnasium_step(observations, rewards, done, info)
+        self.dmlab2d_timestep = timestep
+        return observations, rewards, done, truncated, info
 
     def close(self):
         """See base class."""
@@ -87,6 +92,10 @@ class MeltingPotEnv(multi_agent_env.MultiAgentEnv):
     def get_dmlab2d_env(self):
         """Returns the underlying DM Lab2D environment."""
         return self._env
+    
+    def get_dmlab2d_timestep(self):
+        """Returns the underlying DM Lab2D timestep."""
+        return self.dmlab2d_timestep
 
     # Metadata is required by the gym `Env` class that we are extending, to show
     # which modes the `render` method supports.
@@ -149,7 +158,6 @@ def upgrade_gym_to_gymnasium_reset(obs: MultiAgentDict) -> [MultiAgentDict, Mult
     """
 
     return obs, {p: {} for p in obs.keys()}
-
 
 def upgrade_gym_to_gymnasium_step(observations: MultiAgentDict, rewards: MultiAgentDict, done: MultiAgentDict,
                                   info: MultiAgentDict) -> Tuple[

@@ -58,7 +58,7 @@ def get_world_rgb_bounding_box(env: MeltingPotEnv) -> (int, int, int, int):
     """
     env.reset()
     action = env.action_space.sample()
-    _, _, _, _, info, _ = env.step(action)
+    _, _, _, _, info = env.step(action)
     player_id = list(info.keys())[0]
     world_rgb_arr = info[player_id]['WORLD.RGB']
     env.reset()
@@ -151,4 +151,3 @@ def check_json_has_fields(given_json: str, target_json: str):
     assert len(different_fields) == 0, (f"Given JSON '{given_json}' is missing the following fields: " +
                                         str(different_fields))
     
-
