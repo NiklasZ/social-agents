@@ -8,6 +8,7 @@ but will not reach the release version yet. The changes are fairly simple so I c
 import enum
 import os
 import pickle
+import re
 from collections.abc import Sequence
 from multiprocessing import Process, Queue
 from numbers import Number
@@ -417,6 +418,7 @@ class AnotherWandbLoggerCallback(LoggerCallback):
             self.log_trial_start(trial)
 
         result = _clean_log(result)
+        result = self.__rename_result(result)
         self._trial_queues[trial].put((_QueueItem.RESULT, result))
 
     def log_trial_end(self, trial: "Trial", failed: bool = False):
@@ -439,7 +441,48 @@ class AnotherWandbLoggerCallback(LoggerCallback):
                 del self._trial_queues[trial]
             self._trial_processes[trial].join(timeout=2)
             del self._trial_processes[trial]
-
+    
+    def __rename_result(self, result):
+        '''
+        Rename the result keys to make graph titles and legends more readable
+        '''
+        #extract the level name and roles if possible
+        try:
+            roles = result['config']['env_config']['roles']
+            lab2d_settings = result['config']['env_config']['lab2d_settings']
+        except KeyError:
+            return result
+        
+        #create a map from policy index to role name
+        policy2role = {}
+        for role, policy_idx in zip(roles, range(len(roles))):
+            policy2role[f'policy_{policy_idx}'] = role
+        
+        level_name = re.search(r'levelName: ([^\n]+)', lab2d_settings)
+        level_name = level_name.group(1) if level_name else None
+        
+        #recusivly replace all relevent keys in result
+        def rename_helper(result):
+            if isinstance(result, dict):
+                new_result = {}
+                for key, value in result.items(): 
+                    #append role name to keys that contain substring "policy_{idx}"
+                    match = re.search(r'(policy_\d+)', key)
+                    if match:
+                        new_key = key + f'_{policy2role[match.group(1)]}'
+                        new_result[new_key] = rename_helper(value)
+                    #append level name to keys that contain substring "policy_reward"
+                    elif 'policy_reward' in key:
+                        new_key = key + f'_{level_name}'
+                        new_result[new_key] = rename_helper(value)
+                    else:
+                        new_result[key] = rename_helper(value)   
+                return new_result
+            else:
+                return result
+            
+        return rename_helper(result)
+         
 
 @Deprecated
 class WandbLogger(Logger):
