@@ -17,3 +17,4 @@ wandb
 /.vscode
 /temp
 /run
+/src/analysis/.ipynb_checkpoints/

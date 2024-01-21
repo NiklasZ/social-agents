@@ -13,9 +13,14 @@ from ray.rllib.models import ModelCatalog
 from src.environment.wrappers import RGBObservationWrapper, FrameStacker, FullRGBObservationWrapper
 from src.models.baseline_cnn_lstm import BaselineCNNLSTM
 
-ModelCatalog.register_custom_model(
-    'baseline_cnn_lstm', BaselineCNNLSTM
-)
+
+def register_models():
+    ModelCatalog.register_custom_model(
+        'baseline_cnn_lstm', BaselineCNNLSTM
+    )
+
+
+register_models()
 
 
 def get_model(name: str):

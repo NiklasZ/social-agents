@@ -18,6 +18,7 @@ bleach==6.0.0
 boto3==1.28.69
 botocore==1.31.69
 build==1.0.3
+cache-to-disk==2.0.0
 cachetools==5.3.1
 certifi==2023.7.22
 cffi==1.16.0
