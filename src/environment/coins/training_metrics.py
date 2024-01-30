@@ -28,8 +28,6 @@ class MetricsCallback(DefaultCallbacks):
         episode.user_data['red_picks_all'] = 0
         episode.user_data['blue_picks_own'] = 0
         episode.user_data['red_picks_own'] = 0
-        episode.user_data['red_last_reward'] = 0
-        episode.user_data['blue_last_reward'] = 0
 
     def on_episode_step(self,
                         *,
