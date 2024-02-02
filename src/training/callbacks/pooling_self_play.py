@@ -1,6 +1,5 @@
-from typing import Dict, Any, List, Callable, Union, Optional
+from typing import Dict, Any
 from ray.actor import ActorHandle
-from ray.rllib import RolloutWorker, BaseEnv, Policy
 from ray.rllib.algorithms import Algorithm
 from ray.rllib.algorithms.callbacks import DefaultCallbacks
 from ray.rllib.evaluation import Episode
@@ -12,6 +11,7 @@ from scipy.special import softmax
 from scipy.stats import zscore
 
 from src.utils.helpers import get_trailing_number, flatten_list
+from training.callbacks.utils import apply_to_worker_i
 
 
 @ray.remote
@@ -452,32 +452,6 @@ def get_eval_opponent(a_id: str, episode: Episode, worker, **kwargs):
         return matching_opps[0]
 
     raise Exception(f'Could not match agent {a_id} to policies {matchup_policies}')
-
-
-# Applies one function per worker from a list.
-def apply_to_workers(workers: WorkerSet, funcs: List[Callable[[RolloutWorker], Any]]):
-    local_result = []
-    offset = 0
-    # Local worker: Index=0.
-    if workers.local_worker() is not None:
-        local_result = [funcs[0](workers.local_worker())]
-        offset = 1
-    # Remote workers: Index > 0.
-    remote_results = ray.get(
-        [w.apply.remote(funcs[i + offset]) for i, w in enumerate(workers.remote_workers())]
-    )
-    return local_result + remote_results
-
-
-def apply_to_worker_i(workers: WorkerSet, func: Callable[[RolloutWorker], Any], index: int):
-    # Local worker: Index=0.
-    if workers.local_worker() is not None and index == 0:
-        return func(workers.local_worker())
-
-    # Remote workers: Index >= 0.
-    remote_workers = list(workers.remote_workers())
-    remote_result = ray.get(remote_workers[index].apply.remote(func))
-    return remote_result
 
 
 def calculate_metrics(policy_manager: ActorHandle):

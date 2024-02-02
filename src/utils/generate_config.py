@@ -34,6 +34,10 @@ def get_alg_config(run_config: Dict, training=True) -> Dict:
         ray.rllib.algorithms.ppo.PPOConfig().to_dict()
     )
 
+    if not training:
+        if 'population_self_play' in run_config:
+            run_config['population_self_play']['policy_map_capacity'] = 100
+
     # The RL Module API is a bleeding edge experimental API that was introduced with Ray 2.6.0.
     # Using it restricts the available algorithms and models. For those reasons it is disabled
     # until the API is more mature. See https://docs.ray.io/en/latest/rllib/rllib-rlmodule.html
@@ -202,6 +206,10 @@ def get_alg_config(run_config: Dict, training=True) -> Dict:
     if run_config['pooled_self_play']:
         config['evaluation_num_workers'] = run_config['pooled_self_play']['evaluation_num_workers']
         config['evaluation_interval'] = run_config['pooled_self_play']['evaluation_interval']
+
+    if run_config['population_self_play']:
+        config['create_env_on_driver'] = True
+        config['multiagent']['policy_map_capacity'] = run_config['population_self_play']['policy_map_capacity']
 
     config = {k: v for k, v in config.items() if v is not None}  # filter out None values
     return config

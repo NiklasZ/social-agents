@@ -47,6 +47,7 @@ default_population_self_play_settings = json.dumps({
     # After a sufficient number of policies have improved, control how many more timesteps the remaining
     # policies have to meet their improvement target before dropping them.
     'curriculum_end_timesteps': 50,
+    'policy_map_capacity': 20  # how many policies to keep in memory (RAM) per worker process before caching to disk.
 })
 
 # Here the configurations have the following meaning:
