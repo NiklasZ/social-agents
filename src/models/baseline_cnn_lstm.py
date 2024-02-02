@@ -72,10 +72,10 @@ class BaselineCNNLSTM(RecurrentNetwork, torch.nn.Module):
 
     @override(RecurrentNetwork)
     def forward(
-        self,
-        input_dict: Dict[str, TensorType],
-        state: List[TensorType],
-        seq_lens: TensorType,
+            self,
+            input_dict: Dict[str, TensorType],
+            state: List[TensorType],
+            seq_lens: TensorType,
     ) -> Tuple[TensorType, List[TensorType]]:
         """This is a one-to-one copy of the implementation from RecurrentNetwork, with the
         exception that we also get the previous action as an input."""
@@ -120,7 +120,8 @@ class BaselineCNNLSTM(RecurrentNetwork, torch.nn.Module):
         return torch.reshape(self.value_branch(self._features), [-1])
 
     @override(RecurrentNetwork)
-    def forward_rnn(self, inputs, state, seq_lens, prev_action: TensorType, **kwargs) -> Tuple[TensorType, List[TensorType]]:
+    def forward_rnn(self, inputs, state, seq_lens, prev_action: TensorType, **kwargs) -> Tuple[
+        TensorType, List[TensorType]]:
         """
         @param prev_action: one-hot tensor of last action
         @param inputs: tensor of shape (B x T x H x W x C), where:

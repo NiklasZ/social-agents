@@ -350,7 +350,7 @@ def evaluate_agents(agent_paths: List[str],
                 pickle.dump(all_metrics, f, protocol=pickle.HIGHEST_PROTOCOL)
 
     print(f'Finished pair evaluation in {time.time() - current_time:.2f}s')
-
+    print(f'Results saved to {os.getcwd()}/{matchup_path}')
 
 def run_eval_and_clean(args: dict):
     try:

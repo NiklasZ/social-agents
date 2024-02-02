@@ -17,9 +17,7 @@ class MetricsCallback(DefaultCallbacks):
                          policies: Dict[PolicyID, Policy],
                          episode: EpisodeV2,
                          **kwargs):
-        # We will use the `MultiAgentEpisode` object being passed into
-        # all episode-related callbacks. It comes with a user_data property (dict),
-        # which we can write arbitrary data into.
+
 
         # At the end of an episode, we'll transfer that data into the `hist_data`, and `custom_metrics`
         # properties to make sure our custom data is displayed in TensorBoard.
@@ -38,48 +36,48 @@ class MetricsCallback(DefaultCallbacks):
                         **kwargs):
         delta_red = episode._agent_reward_history['player_0'][-1]
         delta_blue = episode._agent_reward_history['player_1'][-1]
-    
+
         match (int(delta_red), int(delta_blue)):
-            #blue pick red, red pick red
+            # blue pick red, red pick red
             case (-1, 1):
                 episode.user_data['red_picks_all'] += 1
                 episode.user_data['blue_picks_all'] += 1
                 episode.user_data['red_picks_own'] += 1
-            #blue pick red, red pick blue
+            # blue pick red, red pick blue
             case (-1, -1):
                 episode.user_data['red_picks_all'] += 1
                 episode.user_data['blue_picks_all'] += 1
-            #blue pick red, red pick none
+            # blue pick red, red pick none
             case (-2, 1):
                 episode.user_data['blue_picks_all'] += 1
-            #blue pick blue, red pick red
+            # blue pick blue, red pick red
             case (1, 1):
                 episode.user_data['red_picks_all'] += 1
                 episode.user_data['blue_picks_all'] += 1
                 episode.user_data['red_picks_own'] += 1
                 episode.user_data['blue_picks_own'] += 1
-            #blue pick blue, red pick blue
+            # blue pick blue, red pick blue
             case (1, -1):
                 episode.user_data['red_picks_all'] += 1
                 episode.user_data['blue_picks_all'] += 1
                 episode.user_data['blue_picks_own'] += 1
-            #blue pick blue, red pick none
+            # blue pick blue, red pick none
             case (0, 1):
                 episode.user_data['blue_picks_all'] += 1
                 episode.user_data['blue_picks_own'] += 1
-            #blue pick none, red pick red
+            # blue pick none, red pick red
             case (1, 0):
                 episode.user_data['red_picks_all'] += 1
                 episode.user_data['red_picks_own'] += 1
-            #blue pick none, red pick blue
+            # blue pick none, red pick blue
             case (1, -2):
                 episode.user_data['red_picks_all'] += 1
-            #blue pick none, red pick none
+            # blue pick none, red pick none
             case (0, 0):
                 pass
             case (_, _):
                 raise Exception(f'Invalid reward values with delta_red={delta_red}, delta_blue={delta_blue}')
-    
+
     def on_episode_end(self,
                        *,
                        worker,
@@ -93,5 +91,9 @@ class MetricsCallback(DefaultCallbacks):
         episode.custom_metrics["blue_picks_all"] = episode.user_data['blue_picks_all']
         episode.custom_metrics["red_picks_own"] = episode.user_data['red_picks_own']
         episode.custom_metrics["blue_picks_own"] = episode.user_data['blue_picks_own']
-        episode.custom_metrics["red_prop_own2all"] = episode.user_data['red_picks_own'] / episode.user_data['red_picks_all']
-        episode.custom_metrics["blue_prop_own2all"] = episode.user_data['blue_picks_own'] / episode.user_data['blue_picks_all']
+        if episode.user_data['red_picks_all'] > 0:
+            episode.custom_metrics["red_prop_own2all"] = episode.user_data['red_picks_own'] / episode.user_data[
+                'red_picks_all']
+        if episode.user_data['blue_picks_all'] > 0:
+            episode.custom_metrics["blue_prop_own2all"] = episode.user_data['blue_picks_own'] / episode.user_data[
+                'blue_picks_all']

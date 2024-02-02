@@ -468,7 +468,8 @@ class AnotherWandbLoggerCallback(LoggerCallback):
                 for key, value in result.items(): 
                     #append role name to keys that contain substring "policy_{idx}"
                     match = re.search(r'(policy_\d+)', key)
-                    if match:
+                    # Skip if the role is "default" as that is not informative for the environment.
+                    if match and policy2role[match.group(1)] != 'default':
                         new_key = key + f'_{policy2role[match.group(1)]}'
                         new_result[new_key] = rename_helper(value)
                     #append level name to keys that contain substring "policy_reward"

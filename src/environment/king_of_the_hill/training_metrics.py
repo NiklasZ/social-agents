@@ -20,9 +20,6 @@ class MetricsCallback(DefaultCallbacks):
                          policies: Dict[PolicyID, Policy],
                          episode: EpisodeV2,
                          **kwargs):
-        # We will use the `MultiAgentEpisode` object being passed into
-        # all episode-related callbacks. It comes with a user_data property (dict),
-        # which we can write arbitrary data into.
 
         # At the end of an episode, we'll transfer that data into the `hist_data`, and `custom_metrics`
         # properties to make sure our custom data is displayed in TensorBoard.
