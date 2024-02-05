@@ -42,13 +42,13 @@ Like resources, when players are hit by a zapping beam they also get removed
 from the game and never regenerate. Once a player has been zapped out it is
 gone. All resources it claimed are immediately returned to the unclaimed state.
 """
+from typing import Mapping, Sequence, Any
 
 from ml_collections import config_dict
 
 from meltingpot.configs.substrates import territory as base_config
 from meltingpot.utils.substrates import specs
 
-build = base_config.build
 
 ASCII_MAP = """
 F=====================================T
@@ -123,7 +123,24 @@ def get_config(roles=None,
   config.roles = roles or config.default_player_roles
   config.num_players = len(config.roles)
   config.layout.ascii_map = play_map
+  config.episode_duration = {
+      'episode_length_frames': env_settings['episode_length_frames'] if env_settings else 5000,
+      'kwargs': {
+          "minimumFramesPerEpisode": env_settings['minimumFramesPerEpisode'] if env_settings else 300,
+          "intervalLength": 100,  # Set equal to unroll length.
+          "probabilityTerminationPerInterval": 0.05
+      }
+  }
   config.lab2d_settings_builder = build
   config.lab2d_settings = build(config.roles, config)
 
   return config
+
+def build(
+    roles: Sequence[str],
+    config: config_dict.ConfigDict,
+) -> Mapping[str, Any]:
+    base_build = base_config.build(roles, config)
+    base_build['maxEpisodeLengthFrames'] = config.episode_duration['episode_length_frames']
+    base_build['simulation']['scene']['components'][2]['kwargs'] = config['episode_duration']['kwargs']
+    return base_build

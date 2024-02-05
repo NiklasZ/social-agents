@@ -498,6 +498,14 @@ def get_config(roles=None,
                                min_height=config.min_height,
                                max_height=config.max_height)
   config.coin_colours = env_settings['coin_colours'][:len(config.roles)] if env_settings else None
+  config.episode_duration = {
+      'episode_length_frames': env_settings['episode_length_frames'] if env_settings else 5000,
+      'kwargs':{
+        "minimumFramesPerEpisode": env_settings['minimumFramesPerEpisode'] if env_settings else 300,
+        "intervalLength": 100,  # Set equal to unroll length.
+        "probabilityTerminationPerInterval": 0.05
+      }
+  }
   config.lab2d_settings_builder = build
   config.lab2d_settings = build(config.roles, config)
 
@@ -513,7 +521,7 @@ def build(
   # Randomly choose colors.
 
   coin_type_a, coin_type_b = config.coin_colours or random.sample(tuple(COIN_PALETTES), k=2)
-
+  SCENE['components'][3]['kwargs'] = config['episode_duration']['kwargs']
   # Manually build avatar config.
   num_players = len(roles)
   player_color_palettes = get_player_color_palettes(
@@ -529,7 +537,7 @@ def build(
       levelDirectory="meltingpot/lua/levels",
       numPlayers=num_players,
       # Define upper bound of episode length since episodes end stochastically.
-      maxEpisodeLengthFrames=5000,
+      maxEpisodeLengthFrames=config['episode_duration']['episode_length_frames'],
       spriteSize=8,
       topology="BOUNDED",  # Choose from ["BOUNDED", "TORUS"],
       simulation={

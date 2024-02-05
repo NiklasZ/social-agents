@@ -1,6 +1,7 @@
 from environment.clean_up.maps import CLEANUP_MAPS
 from environment.coins.config import COIN_DEFAULT_CONFIG
 from environment.coins.maps import COINS_MAPS
+from environment.territory_open.config import TERRITORY_OPEN_DEFAULT_CONFIG
 from src.environment.coins.training_metrics import MetricsCallback as CoinsMetricsCallback
 from environment.prisoners_dilemma_arena.maps import PRISONERS_DILEMMA_IN_THE_MATRIX_ARENA_MAPS
 from environment.territory_rooms.maps import TERRITORY_ROOMS_MAPS
@@ -32,7 +33,7 @@ DEFAULT_ENV_SETTINGS = {
     'king_of_the_hill': KING_OF_THE_HILL_DEFAULT_CONFIG,
     'predator_and_prey_open': None,
     'prisoners_dilemma_arena': None,
-    'territory_open': None,
+    'territory_open': TERRITORY_OPEN_DEFAULT_CONFIG,
     'territory_rooms': None,
 }
 
