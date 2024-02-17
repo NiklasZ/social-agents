@@ -428,6 +428,46 @@ function Destructable:onHit(hittingGameObject, hitName)
   return false
 end
 
+
+-- A new component to track the number of resources ever claimed at least once by any player and
+-- the number of resources destroyed.
+local ClaimedResourcesCounter = class.Class(component.Component)
+
+function ClaimedResourcesCounter:__init__(kwargs)
+  kwargs = args.parse(kwargs, {
+      {'name', args.default('ClaimedResourcesCounter')},
+  })
+  ClaimedResourcesCounter.Base.__init__(self, kwargs)
+  self._claimedResources = 0
+  self._destroyedResources = 0
+end
+
+function ClaimedResourcesCounter:reset()
+  self._claimedResources = 0
+  self._destroyedResources = 0
+end
+
+function ClaimedResourcesCounter:update()
+  local claimedResources = 0
+  local destroyedResources = 0
+  for _, gameObject in ipairs(self.gameObject.simulation:getAllGameObjects()) do
+    if gameObject:hasComponent('Resource') then
+      local resourceComponent = gameObject:getComponent('Resource')
+      if not resourceComponent._neverYetClaimed then
+        claimedResources = claimedResources + 1
+      end
+      if resourceComponent._destroyed then
+        destroyedResources = destroyedResources + 1
+      end
+    end
+  end
+  self._claimedResources = claimedResources
+  self._destroyedResources = destroyedResources
+  events:add('resources_stats', 'dict',
+             'claimed_resources', claimedResources,  -- int
+             'destroyed_resources', destroyedResources)  -- int
+end
+
 local allComponents = {
     -- Non-avatar components.
     AllBeamBlocker = AllBeamBlocker,
@@ -435,6 +475,7 @@ local allComponents = {
     RewardIndicator = RewardIndicator,
     Paintbrush = Paintbrush,
     Destructable = Destructable,
+    ClaimedResourcesCounter = ClaimedResourcesCounter,
 
     -- Avatar components.
     ResourceClaimer = ResourceClaimer,
