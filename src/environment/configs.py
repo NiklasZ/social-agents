@@ -12,6 +12,7 @@ from src.environment.king_of_the_hill.maps import KING_OF_THE_HILL_MAPS
 from src.environment.king_of_the_hill.training_metrics import MetricsCallback as KOTHMetricsCallback
 from src.environment.predator_and_prey_open.maps import PREDATOR_AND_PREY_OPEN_MAPS
 from src.environment.territory_open.maps import TERRITORY_OPEN_MAPS
+from src.environment.territory_open.training_metrics import MetricsCallback as TerroMetricsCallback
 from src.deepmind.meltingpot.configs.substrates.paintball__king_of_the_hill import get_config as get_config_koth
 from src.deepmind.meltingpot.configs.substrates.allelopathic_harvest__open import \
     get_config as get_config_allelopathic_open
@@ -77,7 +78,7 @@ ENV_TRAINING_METRICS_CALLBACKS = {
     'king_of_the_hill': KOTHMetricsCallback,
     'predator_and_prey_open': None,
     'prisoners_dilemma_arena': None,
-    'territory_open': None,
+    'territory_open': TerroMetricsCallback,
     'territory_rooms': None,
 }
 

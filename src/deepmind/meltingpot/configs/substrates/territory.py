@@ -629,6 +629,10 @@ def create_scene():
                   "intervalLength": 100,  # Set equal to unroll length.
                   "probabilityTerminationPerInterval": 0.2
               }
+          },
+          {
+              "component": "ClaimedResourcesCounter",
+              "kwargs": {}
           }
       ]
   }
