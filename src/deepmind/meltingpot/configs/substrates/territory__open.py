@@ -131,6 +131,8 @@ def get_config(roles=None,
           "probabilityTerminationPerInterval": 0.05
       }
   }
+  config.reward_delay = env_settings['reward_delay'] if env_settings else 25
+  config.reward_probability = env_settings['reward_probability'] if env_settings else 0.01
   config.lab2d_settings_builder = build
   config.lab2d_settings = build(config.roles, config)
 
@@ -141,6 +143,10 @@ def build(
     config: config_dict.ConfigDict,
 ) -> Mapping[str, Any]:
     base_build = base_config.build(roles, config)
+
+    # CUSTOM ADDITIONS
     base_build['maxEpisodeLengthFrames'] = config.episode_duration['episode_length_frames']
     base_build['simulation']['scene']['components'][2]['kwargs'] = config['episode_duration']['kwargs']
+    base_build['simulation']['prefabs']['resource']['components'][3]['kwargs']['rewardDelay'] = config['reward_delay']
+    base_build['simulation']['prefabs']['resource']['components'][3]['kwargs']['rewardRate'] = config['reward_probability']
     return base_build
