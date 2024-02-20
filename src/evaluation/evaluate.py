@@ -38,6 +38,10 @@ def get_eval_path(run_config: Dict, env_name: str, timestamp: str = '') -> str:
     return f"eval_games/{env_name}/{run_config['eval_folder']}/{timestamp}".replace('//', '/')
 
 
+def is_recurrent(agent: Policy) -> bool:
+    return hasattr(agent, 'model') and isinstance(agent.model, RecurrentNetwork)
+
+
 def evaluate(run_config: Dict):
     # TODO use workers for evaluation
     ray.init(local_mode=run_config['debug_mode'])  # Run with local_mode=True to use debugger
@@ -114,7 +118,6 @@ def evaluate_agents(agent_paths: List[str],
                     agent_dicts: List[Dict],
                     eval_path: str,
                     bot_names: List[str]):
-
     # Load meltingpot bots if provided
     bots = load_bot_policies(bot_names)
     bot_dicts = load_bot_configs(bot_names, starting_idx=len(agent_paths))
@@ -153,7 +156,7 @@ def evaluate_agents(agent_paths: List[str],
     env_name = run_config['env']
 
     policy_names = [f"{a['rllib_run_name']}.{a['checkpoint_name']}.{a['policy_id']}" for a in agent_dicts] + \
-        [f"{b['name']}" for b in bot_dicts]
+                   [f"{b['name']}" for b in bot_dicts]
     print(f"Evaluating policies: {', '.join(policy_names)} in {env_name}")
     matchup_path = f"{eval_path}/{'__VS__'.join(policy_names)}"
     player_names = [a_d['player'] for a_d in agent_dicts]
@@ -215,8 +218,8 @@ def evaluate_agents(agent_paths: List[str],
     if activation_paths:
         metrics['other']['activation_paths'] = activation_paths
 
-    #a special timestep object used for bots
-    timestep : dm_env.TimeStep = None
+    # a special timestep object used for bots
+    timestep: dm_env.TimeStep = None
 
     for episode in range(num_episodes):
         print(f'==Episode {episode}==')
@@ -240,12 +243,13 @@ def evaluate_agents(agent_paths: List[str],
         }
         env_episode_metrics = {}
 
+        # Initial hidden and cell state
+        prev_actions = {}
+        states = {}
+
         # If using RNN/LSTM, we need to track more information
-        if any(isinstance(agent.model, RecurrentNetwork) for agent in agents):
-            prev_actions = {}
-            states = {}
-            for agent, player in zip(agents, player_names):
-                # Initial hidden and cell state
+        for agent, player in zip(agents, player_names):
+            if is_recurrent(agent):
                 states[player] = agent.model.get_initial_state()
                 prev_actions[player] = 0
 
@@ -267,7 +271,7 @@ def evaluate_agents(agent_paths: List[str],
                     neuron_scorer.set_current_player(player)
 
                 # If using RNN/LSTM we need to keep track of hidden states
-                if isinstance(agent.model, RecurrentNetwork):
+                if is_recurrent(agent):
                     action, state_out, _ = agent.compute_single_action(obs=obs[player],
                                                                        state=states[player],
                                                                        prev_action=prev_actions[player],
@@ -351,6 +355,7 @@ def evaluate_agents(agent_paths: List[str],
 
     print(f'Finished pair evaluation in {time.time() - current_time:.2f}s')
     print(f'Results saved to {os.getcwd()}/{matchup_path}')
+
 
 def run_eval_and_clean(args: dict):
     try:

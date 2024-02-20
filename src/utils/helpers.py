@@ -154,4 +154,18 @@ def check_json_has_fields(given_json: str, target_json: str):
     different_fields = target_fields.difference(given_fields)
     assert len(different_fields) == 0, (f"Given JSON '{given_json}' is missing the following fields: " +
                                         str(different_fields))
-    
+
+
+def merge_dict(a: dict, b: dict) -> dict:
+    """
+    Merges two nested dictionaries, raising an exception if there is a conflict.
+    @param a: target dict to merge into
+    @param b: source dict to merge from
+    @return: target dict
+    """
+    for key in b:
+        if key in a and isinstance(a[key], dict) and isinstance(b[key], dict):
+            merge_dict(a[key], b[key])
+        else:
+            a[key] = b[key]
+    return a

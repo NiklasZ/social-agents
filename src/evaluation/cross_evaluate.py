@@ -25,12 +25,11 @@ checkpoint = 700
 episodes = 5
 policy_ids = [list(f'policy_{p}_p{i}' for i in range(0, 8)) for p in range(0, 2)]
 player_roles = ['default', 'default']
-activation_config = json.dumps({'layer_path': 'lstm', 'activation_path': '1.0', 'alias': 'lstm_hidden'})
 batch_folder = f'terro_test_700'
 
 # What to filter runs by
 run_filters = {'name': {'$in': run_ids}}
-eval_arguments = f"--episodes {episodes} --num-gpus 1 --activations '{activation_config}'"
+eval_arguments = f"--episodes {episodes} --num-gpus 1"
 
 # Query the WandB API for runs with exactly 1500 training iterations
 api = wandb.Api()

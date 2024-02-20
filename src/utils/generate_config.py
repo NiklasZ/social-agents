@@ -6,12 +6,14 @@ from ray.rllib.algorithms.ppo import PPO
 from ray.rllib.policy.policy import PolicySpec
 from ray.tune.registry import register_env
 
-from src.environment.configs import PLAYABLE_MAPS, ENV_TRAINING_METRICS_CALLBACKS, MELTING_POT_CONFIG_FUNCS
+from src.environment.configs import PLAYABLE_MAPS, ENV_TRAINING_METRICS_CALLBACKS, MELTING_POT_CONFIG_FUNCS, \
+    DEFAULT_ENV_SETTINGS
 from src.models.model_catalog import get_model
 from src.training.callbacks.enhanced_self_play import EnhancedSelfPlayCallback
 from src.training.callbacks.pooling_self_play import PoolingSelfPlayCallback
-from src.utils.helpers import get_trailing_number
+from src.utils.helpers import get_trailing_number, merge_dict
 from training.callbacks.population_self_play import PopulationSelfPlayCallback, training_policy_mapping_fn
+from training.policies.idle_policy import IdlePolicy
 
 
 def patch_run_config(run_config: Dict) -> Dict:
@@ -22,9 +24,12 @@ def patch_run_config(run_config: Dict) -> Dict:
     """
     default_values = {
         'model_sharing': 'independent' if 'multi_model' in run_config and run_config['multi_model']
-        else 'shared'
+        else 'shared',
+        'solo_play': False,
+        'population_self_play': {'policy_map_capacity': 100} if run_config['population_self_play'] else None,
+        'env_settings': DEFAULT_ENV_SETTINGS[run_config['env']]
     }
-    return default_values | run_config
+    return merge_dict(default_values, run_config)
 
 
 def get_alg_config(run_config: Dict, training=True) -> Dict:
@@ -33,10 +38,6 @@ def get_alg_config(run_config: Dict, training=True) -> Dict:
     config = copy.deepcopy(
         ray.rllib.algorithms.ppo.PPOConfig().to_dict()
     )
-
-    if not training:
-        if 'population_self_play' in run_config:
-            run_config['population_self_play']['policy_map_capacity'] = 100
 
     # The RL Module API is a bleeding edge experimental API that was introduced with Ray 2.6.0.
     # Using it restricts the available algorithms and models. For those reasons it is disabled
@@ -142,6 +143,21 @@ def get_alg_config(run_config: Dict, training=True) -> Dict:
         config['multiagent'] = {
             'policies': policies,
             'policy_mapping_fn': training_policy_mapping_fn,
+            'count_steps_by': 'env_steps',
+        }
+
+    if run_config['solo_play']:
+        policies = {f'policy_{i}': PolicySpec(
+            policy_class=None if i == 0 else IdlePolicy,  # use default policy and make all other agents idle
+            observation_space=test_env.observation_space[f'player_{i}'],
+            action_space=test_env.action_space[f'player_{i}'],
+            config={},
+        ) for i in range(0, len(env_config['roles']))}
+        config['multiagent'] = {
+            'policies_to_train': ['policy_0'],
+            'policies': policies,
+            'policy_mapping_fn': lambda agent_id, episode, worker,
+                                        **kwargs: f'policy_{get_trailing_number(agent_id)}',
             'count_steps_by': 'env_steps',
         }
 

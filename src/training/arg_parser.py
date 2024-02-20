@@ -149,6 +149,8 @@ def get_train_args(arg_list: List[str] = None):
     parser_new.add_argument('--population-self-play', type=str, required=False, default=None,
                             help='Lets agents learn together as a population. '
                                  f"Default setting for this is: {default_population_self_play_settings}")
+    parser_new.add_argument('--solo-play', action=argparse.BooleanOptionalAction, required=False, default=False,
+                            help='toggle to play against an idle agent. Useful for debugging')
     parser_new.add_argument('--episodes-per-training-iteration', type=int, required=False, default=4,
                             help='how many episodes to collect before training. Affects the training batch size')
     parser_new.add_argument('--framework', type=str, required=False, default='torch',
@@ -203,8 +205,11 @@ def get_train_args(arg_list: List[str] = None):
         if args.framework != 'torch':
             raise Exception("Deep learning framework must be 'torch' as 'tf2' is not supported yet.")
 
-        if sum(bool(e) for e in [args.pooled_self_play, args.generalising_self_play, args.pooled_self_play]) > 1:
+        if sum(bool(e) for e in [args.population_self_play, args.generalising_self_play, args.pooled_self_play]) > 1:
             raise Exception('Only one self-play callback method can be enabled at a time.')
+
+        if any([args.population_self_play, args.generalising_self_play, args.pooled_self_play])  and args.solo_play:
+            raise Exception('Self-play methods cannot be used alongside solo play.')
 
         if args.pooled_self_play or args.generalising_self_play:
             raise Exception('Advanced self-play methods are outdated and need to be re-implemented.')
