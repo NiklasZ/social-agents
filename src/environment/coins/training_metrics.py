@@ -8,18 +8,6 @@ from ray.rllib.utils.typing import PolicyID
 Collects extra metrics during episode. A lot of these rely on the reward structure of the environment.
 """
 
-"""
-Notes about layering of env wrappers
-- base_env argument in most methods in the MetricsCallback class is of type  
-  <class 'ray.rllib.env.multi_agent_env.MultiAgentEnvWrapper'>
-- Using the get_sub_environments() method on base_env returns a list of underlying environments
-- The first element of the returned list is of type <class 'src.environment.wrappers.RGBObservationWrapper'>
-- Using the get_dmlab2d_env() method on the RGBObservationWrapper returns an instance of
-  <class 'src.deepmind.examples.rllib.utils.MeltingPotEnv'>
-- Using the get_dmlab2d_env() method on the MeltingPotEnv returns an instance of
-  <class 'meltingpot.utils.substrates.substrate.Substrate'>
-"""
-
 class MetricsCallback(DefaultCallbacks):
     def on_episode_start(self,
                          *,
