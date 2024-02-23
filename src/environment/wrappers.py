@@ -1,5 +1,6 @@
-from typing import Union
+from typing import List, Sequence, Tuple, Union
 from collections import deque
+import numpy as np
 
 import gymnasium
 import numpy as np
@@ -10,6 +11,7 @@ from gymnasium import spaces
 from ray.rllib.utils.typing import MultiAgentDict
 
 from src.deepmind.examples.rllib.utils import MeltingPotEnv
+from src.deepmind.meltingpot.utils.substrates.substrate import Substrate
 from src.utils.helpers import get_world_rgb_bounding_box
 
 
@@ -165,3 +167,19 @@ class RenderCropper(gymnasium.Wrapper):
     def render(self) -> np.ndarray:
         x, y, w, h = self.bounding_box
         return self.env.render()[y:y + h, x:x + w]
+
+def get_events_from_env_wrapper(env_wrapper: BaseWrapper) -> Sequence[Tuple[str, Sequence[Union[np.ndarray, bytes]]]]:
+    '''
+    Get registered events from the environment wrapper
+
+    Args:
+    env_wrapper: BaseWrapper
+
+    Returns:
+    Sequence[Tuple[str, Sequence[Union[np.ndarray, bytes]]]]: 
+        (name, observations) pairs for all events generated after last step or reset.
+    '''
+    meltingpot_env: MeltingPotEnv = env_wrapper.get_dmlab2d_env()
+    substrate: Substrate = meltingpot_env.get_dmlab2d_env()
+    events = substrate.events()
+    return events

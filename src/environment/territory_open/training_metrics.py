@@ -3,21 +3,14 @@ from ray.rllib import BaseEnv, Policy
 from ray.rllib.algorithms.callbacks import DefaultCallbacks
 from ray.rllib.evaluation.episode_v2 import EpisodeV2
 from ray.rllib.utils.typing import PolicyID
+from ray.rllib.utils.typing import EnvType
+from src.environment.wrappers import RGBObservationWrapper
+from src.deepmind.examples.rllib.utils import MeltingPotEnv
+from src.deepmind.meltingpot.utils.substrates.substrate import Substrate
+from src.environment.wrappers import get_events_from_env_wrapper
 
 """
 Collects extra metrics during episode. Some of these rely on the reward structure of the environment.
-"""
-
-"""
-Notes about layering of env wrappers
-- base_env argument in most methods in the MetricsCallback class is of type  
-  <class 'ray.rllib.env.multi_agent_env.MultiAgentEnvWrapper'>
-- Using the get_sub_environments() method on base_env returns a list of underlying environments
-- The first element of the returned list is of type <class 'src.environment.wrappers.RGBObservationWrapper'>
-- Using the get_dmlab2d_env() method on the RGBObservationWrapper returns an instance of
-  <class 'src.deepmind.examples.rllib.utils.MeltingPotEnv'>
-- Using the get_dmlab2d_env() method on the MeltingPotEnv returns an instance of
-  <class 'meltingpot.utils.substrates.substrate.Substrate'>
 """
 
 class MetricsCallback(DefaultCallbacks):
@@ -47,12 +40,11 @@ class MetricsCallback(DefaultCallbacks):
                         **kwargs):
         
         #get the substrate
-        i_MultiAgentEnvWrapper = base_env.get_sub_environments()
-        i_RGBObservationWrapper = i_MultiAgentEnvWrapper[0]
-        i_MeltingPotEnv = i_RGBObservationWrapper.get_dmlab2d_env()
-        substrate = i_MeltingPotEnv.get_dmlab2d_env()
-        # get the registered events
-        events = substrate.events()
+        sub_envs: List[EnvType] = base_env.get_sub_environments()
+        assert(len(sub_envs) == 1, "There should be only one sub environment")
+        observation_wrapper: RGBObservationWrapper = sub_envs[0]
+        #get registered events
+        events = get_events_from_env_wrapper(observation_wrapper)
         for event in events:
             event_type = event[0]
             # Update the number of walls ever claimed and destroyed
