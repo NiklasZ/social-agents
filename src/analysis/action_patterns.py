@@ -1,20 +1,27 @@
-import json
-from typing import List
+"""
+Finds the most common action sequences that agents take. It then creates a histogram per player per sequence length.
+"""
+
+import pickle
+from typing import List, Tuple
+from cache_to_disk import cache_to_disk
 from matplotlib import pyplot as plt
 from tqdm import tqdm
-from king_of_the_hill.wandb_api import make_dir_if_not_exists
-
-# Plots common action sequences that agents take.
-
-eval_path = 'king_of_the_hill/evaluation/run-1663376683/checkpoint-1300-2022-11-08-14-34-10'
-metrics_path = f'{eval_path}/metrics.json'
-
-with open(metrics_path) as metrics_str:
-    metrics = json.load(metrics_str)
+from analysis.helpers import save_as_example_output, EXAMPLE_OUTPUTS_FOLDER
+from utils.wandb_api import make_dir_if_not_exists
 
 
-def get_action_patterns(episodes: List[List[dict]]):
-    player_ids = episodes[0][0].keys()
+@cache_to_disk(31)  # Cache function output for input for 31 days
+def get_action_patterns(metrics_path: str) -> Tuple[dict, List[str]]:
+    with open(metrics_path, 'rb') as fp:
+        metrics = pickle.load(fp)
+
+    assert metrics['general_metrics']['other']['environment'] == 'king_of_the_hill', \
+        'Analysis method only supports king_of_the_hill environment'
+
+    episodes = metrics['general_metrics']['actions']
+
+    player_ids = list(episodes[0][0].keys())
     # list of [sequence length] by {player: {action sequence:frequency}}. E.g:
     # 1st element contains frequency of all single actions
     # 2nd element contains frequency of all action pairs
@@ -72,7 +79,8 @@ def get_action_patterns(episodes: List[List[dict]]):
         'SR',  # STEP RIGHT
         'TL',  # TURN LEFT
         'TR',  # TURN RIGHT
-        'Z',  # FIRE ZAP (paint)
+        'ZS',  # FIRE SHORT ZAP (paint)
+        'ZL'  # FIRE LONG ZAP (paint)
     )
 
     def to_action_str(action_seq):
@@ -89,8 +97,6 @@ def get_action_patterns(episodes: List[List[dict]]):
                 seq_len = len(player_actions_freqs[0][0])
                 most_frequent_actions[player][seq_len] = sorted(player_actions_freqs, key=lambda t: t[1], reverse=True)[
                                                          :8]
-    with open(f'{eval_path}/action_frequencies.json', 'w') as convert_file:
-        convert_file.write(json.dumps(most_frequent_actions))
 
     print('\nMost frequent actions per player:')
     for p in player_ids:
@@ -99,11 +105,15 @@ def get_action_patterns(episodes: List[List[dict]]):
             print(f'Seq length {seq_len}')
             print(most_frequent_actions[p][seq_len])
 
+    return most_frequent_actions, player_ids
+
+
+def plot_most_frequent_actions(most_frequent_actions: dict, player_ids: List[str], eval_path: str) -> str:
     print('Generating plots...')
     colours = ['red', 'blue', -1]
     max_freq = 0
-    chart_path = f'{eval_path}/charts/action_frequencies'
-    make_dir_if_not_exists(chart_path)
+    plot_path = f'{eval_path}/plots/action_frequencies'
+    make_dir_if_not_exists(plot_path)
 
     for p in player_ids:
         max_freq = max([t[1] for t in most_frequent_actions[p][1]] + [max_freq])
@@ -124,8 +134,16 @@ def get_action_patterns(episodes: List[List[dict]]):
             ax = plt.gca()
             ax.set_ylim([0, max_freq])
             # plt.show()
-            plt.savefig(f'{chart_path}/{p}-len-{seq_len}.png')
+            plt.savefig(f'{plot_path}/{p}-len-{seq_len}.png')
             plt.clf()
 
+    return plot_path
 
-get_action_patterns(metrics['actions'])
+
+if __name__ == "__main__":
+    eval_path = (
+        'eval_games/king_of_the_hill/2023-11-16-15-54-31/run-1698743803.checkpoint-1500.policy0__VS__run-1698743803.checkpoint-1500.policy1')
+    metrics_path = f'{eval_path}/metrics.pkl'
+    most_frequent_actions, player_ids = get_action_patterns(metrics_path)
+    plot_path = plot_most_frequent_actions(most_frequent_actions, player_ids, eval_path)
+    save_as_example_output(plot_path, EXAMPLE_OUTPUTS_FOLDER)

@@ -1,3 +1,8 @@
+"""
+Decodes various information from the activations of an agent
+"""
+# TODO code needs to be updated to use new evaluation metrics structure
+
 import glob
 import os
 import pickle
@@ -8,11 +13,11 @@ from matplotlib import pyplot as plt
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_squared_error
 from sklearn.multioutput import MultiOutputRegressor
-from sklearn.svm import SVR, LinearSVR
 from tqdm import tqdm
-from king_of_the_hill.analysis.plotting.distances import get_relative_player_positions
-from king_of_the_hill.analysis.plotting.filters import filter_by_deaths, filter_by_mutual_vision
-from king_of_the_hill.wandb_api import make_dir_if_not_exists
+
+from analysis.filters import filter_by_deaths, filter_by_mutual_vision
+from analysis.helpers import get_relative_player_positions
+from utils.wandb_api import make_dir_if_not_exists
 
 # Base args to configure
 evaluation_folder = 'koth-multi-train'

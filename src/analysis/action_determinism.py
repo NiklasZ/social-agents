@@ -1,5 +1,9 @@
-# Measure how deterministically agents choose actions during evaluation and how this correlated with their
-# performance.
+"""
+This creates a plot the compares mean max action probability vs mean returns for each policy in a cross-play evaluation.
+In practice, it shows whether there is any relationship between how deterministic a policy is vs. how well it performs.
+"""
+# TODO code needs to be updated to use new evaluation metrics structure
+
 import glob
 import os
 import pickle
@@ -9,14 +13,14 @@ from cache_to_disk import cache_to_disk, delete_disk_caches_for_function
 from matplotlib import pyplot as plt
 from tqdm import tqdm
 
-from king_of_the_hill.analysis.plotting.cross_play_returns import get_cross_play_returns
-from king_of_the_hill.analysis.plotting.helpers import get_action_softmax
-from king_of_the_hill.wandb_api import make_dir_if_not_exists
+from analysis.cross_play_returns import get_cross_play_returns
+from analysis.helpers import get_action_softmax
+from utils.wandb_api import make_dir_if_not_exists
 
 player_colours = {'player_0': 'red', 'player_1': 'blue'}
 
 
-@cache_to_disk(31)  # Cache for 31 days
+@cache_to_disk(31)  # Cache function output for input for 31 days
 def get_max_action_probabilities(all_metrics_paths: List[str]) -> dict:
     with open(all_metrics_paths[0], 'rb') as fp:
         example_pkl_file = pickle.load(fp)

@@ -1,10 +1,14 @@
+"""
+Plots how much time agents spend being dead in an episode.
+"""
+# TODO code needs to be updated to use new evaluation metrics structure
+
 import json
 import pickle
 import matplotlib.pyplot as plt
 import numpy as np
 from tqdm import tqdm
 
-# Plots how much time agents spend being dead in an episode.
 
 checkpoint_range_dir = 'king_of_the_hill/evaluation/run-1675134255/checkpoint-range-50-1950-2023-02-01-23-14-11'
 

@@ -1,8 +1,10 @@
 import glob
 import json
 import os
-from typing import List, Callable, Any, Optional
+from typing import List, Callable, Any, Optional, Tuple
+import shutil
 
+from matplotlib.figure import Figure
 from numpy.random import randint
 from scipy.linalg import svd
 import matplotlib.pyplot as plt
@@ -15,38 +17,11 @@ from sklearn.metrics import explained_variance_score
 from torch.nn.functional import one_hot
 import inspect
 
-# Plots distance between players
-
-# TODO: write a proper argparse
-eval_path = 'king_of_the_hill/evaluation/run-1663376683/checkpoint-1300-2022-12-05-14-36-11'
-metrics_path = f'{eval_path}/metrics.json'
-ep_id = 0
-
-
-def plot_players_distances(m: dict):
-    if len(m['zaps'][ep_id]) != 2:
-        raise NotImplementedError('Function is only designed for 2 agents')
-
-    # Get all non-zero distances as zero indicates one of the players is dead
-    player_0_to_1_distance = np.array([(i, d['player_0']['player_1'])
-                                       for i, d in enumerate(m['distances'][ep_id])])
-
-    timesteps = player_0_to_1_distance[:, 0]
-    distances = player_0_to_1_distance[:, 1]
-
-    fig = plt.figure(1, figsize=(8, 2))
-    plt.plot(timesteps, distances)
-    plt.xlabel('timesteps')
-    plt.ylabel('Euclidean distance')
-    plt.title('Distance between agents')
-
-    out_path = f'{eval_path}/ep{ep_id}_distances'
-    fig.savefig(out_path, bbox_inches='tight')
-    return
-
+# Sets the folder where example outputs will be saved
+EXAMPLE_OUTPUTS_FOLDER = 'src/analysis/example_outputs'
 
 # Note this conversion applies transformations to the coordinates based on the orientation the player is facing.
-# For details on how these were calculated see king_of_the_hill/docs/relative_position_notes.pdf
+# For details on how these were calculated see doc/relative_position_notes.pdf
 position_mappers = [
     lambda x, y: (x, -y),  # orientation 0: faces north
     lambda x, y: (y, x),  # orientation 1: faces east
@@ -68,8 +43,6 @@ def get_relative_player_positions(metrics: dict, ep_id: int, player_id: str, oth
     return np.array([relative_position(p[player_id], p[other_player_id], o[player_id])
                      for p, o in zip(metrics['positions'][ep_id], metrics['orientations'][ep_id])])
 
-
-# {'center_x': hill_center_x, 'center_y': hill_center_y}
 
 def get_relative_hill_positions(metrics: dict, ep_id: int, player_id: str):
     hill_position = (metrics['other']['hill']['center_x'], metrics['other']['hill']['center_y'])
@@ -114,9 +87,15 @@ def get_covariance_svd(A: np.ndarray, B: np.ndarray):
     return U, V_T.T, S
 
 
-# Performs PLSC to get the shared neural activity. We then perform SVD to get the
-# highest variance components (aka saliences) and use them to score the original activities.
-def score_shared_activity_via_plsc(activations: List[np.ndarray], plsc_value=1) -> (np.ndarray, np.ndarray):
+def score_shared_activity_via_plsc(activations: Tuple[np.ndarray, np.ndarray],
+                                   plsc_value=1) -> (np.ndarray, np.ndarray):
+    """
+    Performs PLSC to get the shared neural activity. We then perform SVD to get the
+    highest variance components (aka saliences) and use them to score the original activities.
+    @param activations:
+    @param plsc_value: which plsc component to use
+    @return:
+    """
     if len(activations) != 2:
         raise NotImplementedError('Function is only designed for 2 agents')
 
@@ -170,20 +149,47 @@ def get_var_explained_via_plsr(X: np.ndarray, y: np.ndarray, n_components: Optio
     return explained_variance_score(y, pred_y)
 
 
-# Shifts array randomly by a range from the minimum to max length of the first dimension of the array.
 def random_shift(arr: np.ndarray, min_shift=10) -> np.ndarray:
+    """
+    Shifts array randomly by a range from the minimum to max length of the first dimension of the array.
+    @param arr:
+    @param min_shift:
+    @return:
+    """
     rand_high = arr.shape[0]
     return np.roll(arr, randint(min_shift, rand_high))
 
 
-if __name__ == "__main__":
-    # dummy_metrics = {'positions': [[{'player_0': [16, 3], 'player_1': [14, 4]},
-    #                                 {'player_0': [16, 3], 'player_1': [14, 4]},
-    #                                 {'player_0': [16, 3], 'player_1': [14, 4]},
-    #                                 {'player_0': [16, 3], 'player_1': [14, 4]}]],
-    #                  'orientations': [[{'player_0': 0}, {'player_0': 1}, {'player_0': 2}, {'player_0': 3}]]}
-    # out = get_relative_positions(dummy_metrics, 0, 'player_0', 'player_1')
-    # print(out)
-    with open(metrics_path) as metrics_str:
-        metrics = json.load(metrics_str)
-    plot_players_distances(metrics)
+def save_as_example_output(plots_folder: str, examples_folder: str):
+    """
+    Saves the contents of a folder as an example output for the analysis module.
+    It infers the caller's filename and creates a folder with that name in the examples folder.
+    @param plots_folder: folder to copy from
+    @param examples_folder: folder to copy to
+    @return:
+    """
+    assert 'plots' in plots_folder, 'The example copying method requires to use the plots folder.'
+    # Get the current stack
+    stack = inspect.stack()
+    # The caller information is in the second element of the stack
+    caller = stack[1]
+    caller_file = os.path.basename(caller.filename).split('.')[0]
+
+    output_folder = f"{examples_folder}/{caller_file}"
+    if len(plots_folder.split('plots/')) == 2:
+        output_folder += f"{plots_folder.split('plots')[1]}"
+
+    if os.path.exists(output_folder):
+        shutil.rmtree(output_folder)
+    shutil.copytree(plots_folder, output_folder)
+
+
+def embed_data_source(fig: Figure, source: str):
+    """
+    Embeds the data source string to the bottom right of the figure.
+    @param f: matplotlib figure
+    @param source: data source string
+    @return:
+    """
+    # Embed a string at the bottom right of the chart
+    fig.text(0.95, 0.01, f'data source: {source}', ha='right', va='bottom', fontsize=8, color='gray')

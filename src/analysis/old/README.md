@@ -1,0 +1,1 @@
+This folder contains older or unused analysis scripts that can probably be ignored or deleted.

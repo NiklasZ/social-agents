@@ -1,3 +1,9 @@
+"""
+Plots Mean Activity Pearson correlation allowing to filter out timesteps based on some criteria
+"""
+# TODO code needs to be updated to use new evaluation metrics structure
+
+
 from datetime import datetime
 from typing import Dict
 import scipy.stats
@@ -5,9 +11,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from tqdm import tqdm
 import pickle
-from king_of_the_hill.wandb_api import make_dir_if_not_exists
-
-# Plots Mean Activity Pearson correlation allowing to filter out timesteps based on some criteria
+from utils.wandb_api import make_dir_if_not_exists
 
 checkpoint_range_dir = 'king_of_the_hill/evaluation/run-1677743405/checkpoint-range-100-1500-2023-03-04-16-08-31'
 policy_folder = 'policy0__VS__policy1'

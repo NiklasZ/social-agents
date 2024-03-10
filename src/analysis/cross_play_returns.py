@@ -1,24 +1,29 @@
-# Yields returns from different policies from different agents playing against each other
+"""
+Yields plot of a matrix of reward for each matchup between pairs of policies.
+"""
+
+
 import glob
 import os
 import pickle
 from typing import List, Dict
 import numpy as np
 import matplotlib.pyplot as plt
-from cache_to_disk import cache_to_disk, delete_disk_caches_for_function
 from tqdm import tqdm
 import matplotlib.colors as mcolors
-from king_of_the_hill.wandb_api import make_dir_if_not_exists
 
-player_colours = {'player_0': 'red', 'player_1': 'blue'}
+from analysis.helpers import save_as_example_output, EXAMPLE_OUTPUTS_FOLDER
+from utils.wandb_api import make_dir_if_not_exists
+
+colours = ['blue', 'red']
 
 
-@cache_to_disk(31)  # Cache for 31 days
 def get_cross_play_returns(all_metrics_paths: List[str]) -> [dict, dict, dict]:
     with open(all_metrics_paths[0], 'rb') as fp:
         example_pkl_file = pickle.load(fp)
 
-    player_ids = sorted([agent_info['player'] for agent_info in example_pkl_file['other']['agent_info']])
+    player_ids = sorted(
+        [agent_info['player'] for agent_info in example_pkl_file['general_metrics']['other']['agent_info']])
 
     if len(player_ids) != 2:
         raise NotImplementedError(
@@ -31,7 +36,8 @@ def get_cross_play_returns(all_metrics_paths: List[str]) -> [dict, dict, dict]:
 
     for metrics_path in tqdm(all_metrics_paths):
         with open(metrics_path, 'rb') as fp:
-            metrics = pickle.load(fp)
+            all_metrics = pickle.load(fp)
+            metrics = all_metrics['general_metrics']
 
         agent_infos = metrics['other']['agent_info']
 
@@ -61,14 +67,32 @@ def plot_matrices(matrices: Dict[str, np.ndarray],
                   player_ids: List[str],
                   matrix_idx_map: dict,
                   cross_play_path: str,
-                  matrix_type: str):
+                  matrix_type: str) -> str:
+    plot_dir = f'{cross_play_path}/plots/cross_play_returns'
+
     for player in player_ids:
         other_player = [p for p in player_ids if p != player][0]
 
         # Define the labels for the rows and columns
-        # Note in this case we assume that the policies are uniquely identifiable by run id.
-        row_labels = [l.split('.')[0] for l in matrix_idx_map[player].keys()]
-        col_labels = [l.split('.')[0] for l in matrix_idx_map[other_player].keys()]
+        # This is a bit more complex as we put common parts of the labels in the title
+        # And different parts in the rows and columns
+        raw_labels = list(matrix_idx_map[player].keys()) + list(matrix_idx_map[other_player].keys())
+        split_labels = [l.split('.') for l in raw_labels]
+        has_common_run = len(set(l[0] for l in split_labels)) == 1
+        has_common_checkpoint = len(set(l[1] for l in split_labels)) == 1
+        common_policies = set(l[2] for l in split_labels)
+        has_common_policies = len(common_policies) == 2
+
+        title_details = ((f'{split_labels[0][0]}.' if has_common_run else '') +
+                         (f'{split_labels[0][1]}.' if has_common_checkpoint else '') +
+                         (','.join(common_policies) if has_common_policies else '')).strip('.')
+
+        title = f'{player} vs. {other_player} for {title_details} - episode rewards {matrix_type}'
+        pick_props = lambda props: ('.'.join(['' if h else prop for h, prop in
+                                              zip([has_common_run, has_common_checkpoint, has_common_policies], props)])
+                                    .strip('.'))
+        row_labels = [pick_props(s.split('.')) for s in matrix_idx_map[player].keys()]
+        col_labels = [pick_props(s.split('.')) for s in matrix_idx_map[other_player].keys()]
 
         fig, ax = plt.subplots(figsize=(13, 12))
 
@@ -77,12 +101,16 @@ def plot_matrices(matrices: Dict[str, np.ndarray],
         # We match the colours so low values match the other player's colour as they are performing well
         # And high values match the current player's colour as they are performing well
         if matrix_type == 'mean':
-            colors = [player_colours[other_player], player_colours[player]]
             text_colour = 'white'
-            cmap = mcolors.LinearSegmentedColormap.from_list("", colors)
-            # Set min-max of colour gradient to match matrix max (centers the middle of the gradient on 0).
-            max_magnitude = np.max(np.abs(matrices[player]))
-            cax = ax.imshow(matrices[player], cmap=cmap, vmin=-max_magnitude, vmax=max_magnitude)
+            cmap = mcolors.LinearSegmentedColormap.from_list("", colours)
+
+            # Choose colour gradient based on whether there are negative rewards or only positive ones
+            if np.min(matrices[player]) < 0:
+                # Set min-max of colour gradient to match matrix max (centers the middle of the gradient on 0).
+                max_magnitude = np.max(np.abs(matrices[player]))
+                cax = ax.imshow(matrices[player], cmap=cmap, vmin=-max_magnitude, vmax=max_magnitude)
+            else:
+                cax = ax.imshow(matrices[player], cmap=cmap)
         elif matrix_type == 'std':
             colors = ['white', 'orange']
             text_colour = 'black'
@@ -107,20 +135,18 @@ def plot_matrices(matrices: Dict[str, np.ndarray],
         ax.set_yticklabels(row_labels)
         plt.xticks(rotation=90)
 
-        # Titles
-        title = f'{player} ({player_colours[player]})' \
-                f' vs. {other_player} ({player_colours[other_player]}) - episode rewards {matrix_type}'
+        # Title
         plt.title(title)
-        plt.ylabel(f'{player} ({player_colours[player]}) policies')
-        plt.xlabel(f'{other_player} ({player_colours[other_player]}) policies')
+        plt.ylabel(f'{player} policies')
+        plt.xlabel(f'{other_player} policies')
 
         # Save the plot
-        plot_dir = f'{cross_play_path}/plots'
         make_dir_if_not_exists(plot_dir)
         plt.savefig(f'{plot_dir}/{title}.png')
-
         # Show the plot
         plt.show()
+
+    return plot_dir
 
 
 def plot_cross_play_returns(cross_play_path: str,
@@ -141,9 +167,12 @@ def plot_cross_play_returns(cross_play_path: str,
     matrix_idx_map = {p: m for p, m in zip(player_ids, [matrix_player_0_idx_map, matrix_player_1_idx_map])}
 
     # Assign each return to a matrix entry
-    matrix_dims = [len(matrix_idx_map[p]) for p in matrix_idx_map]
-    mean_matrices = {p: np.zeros(matrix_dims) for p in player_ids}
-    std_matrices = {p: np.zeros(matrix_dims) for p in player_ids}
+    player_0_matrix_dims = [len(matrix_idx_map[p]) for p in matrix_idx_map]
+    player_1_matrix_dims = list(reversed(player_0_matrix_dims))
+    mean_matrices = {player_ids[0]: np.zeros(player_0_matrix_dims),
+                     player_ids[1]: np.zeros(player_1_matrix_dims)}
+    std_matrices = {player_ids[0]: np.zeros(player_0_matrix_dims),
+                    player_ids[1]: np.zeros(player_1_matrix_dims)}
 
     for player in player_ids:
         other_player = [p for p in player_ids if p != player][0]
@@ -154,17 +183,18 @@ def plot_cross_play_returns(cross_play_path: str,
                 mean_matrices[player][row_idx, col_idx] = player_returns_mean[player][player_policy][opponent_policy]
                 std_matrices[player][row_idx, col_idx] = player_returns_std[player][player_policy][opponent_policy]
 
-    plot_matrices(matrices=mean_matrices,
-                  cross_play_path=cross_play_path,
-                  player_ids=player_ids,
-                  matrix_idx_map=matrix_idx_map,
-                  matrix_type='mean')
+    plot_path = plot_matrices(matrices=mean_matrices,
+                              cross_play_path=cross_play_path,
+                              player_ids=player_ids,
+                              matrix_idx_map=matrix_idx_map,
+                              matrix_type='mean')
 
-    plot_matrices(matrices=std_matrices,
-                  cross_play_path=cross_play_path,
-                  player_ids=player_ids,
-                  matrix_idx_map=matrix_idx_map,
-                  matrix_type='std')
+    plot_path = plot_matrices(matrices=std_matrices,
+                              cross_play_path=cross_play_path,
+                              player_ids=player_ids,
+                              matrix_idx_map=matrix_idx_map,
+                              matrix_type='std')
+    return plot_path
 
 
 # Print statistics on which policies perform best at minimum and an on average
@@ -178,19 +208,20 @@ def print_overall_performances(player_returns: dict, player_policies: dict, top_
         top_k_mean = list(reversed(sorted(mean_returns, key=lambda x: x[1])))[:top_k]
         top_k_min = list(reversed(sorted(min_returns, key=lambda x: x[1])))[:top_k]
 
-        print(f'\nFor {player} ({player_colours[player]}) top {top_k} by mean return:')
+        print(f'\nFor {player} top {top_k} by mean return:')
         for e in top_k_mean:
             print(e)
 
-        print(f'\nFor {player} ({player_colours[player]}) top {top_k} by min return:')
+        print(f'\nFor {player} top {top_k} by min return:')
         for e in top_k_min:
             print(e)
 
 
 if __name__ == "__main__":
-    cross_play_path = 'king_of_the_hill/evaluation/koth-multi-train_cross_4x'
+    cross_play_path = 'eval_games/territory_open/terro_test_700'
     # delete_disk_caches_for_function('get_cross_play_returns')
     all_metrics_paths = glob.glob(os.path.join(cross_play_path, "**", f"metrics.pkl"), recursive=True)
     player_returns_mean, player_returns_std, player_policies = get_cross_play_returns(all_metrics_paths)
-    print_overall_performances(player_returns_mean, player_policies, 5)
-    plot_cross_play_returns(cross_play_path, player_returns_mean, player_returns_std, player_policies)
+    print_overall_performances(player_returns_mean, player_policies, 10)
+    plot_path = plot_cross_play_returns(cross_play_path, player_returns_mean, player_returns_std, player_policies)
+    save_as_example_output(plot_path, EXAMPLE_OUTPUTS_FOLDER)

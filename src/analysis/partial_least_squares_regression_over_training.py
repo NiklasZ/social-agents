@@ -1,25 +1,21 @@
-# This uses PLSR to predict the activations of a player (or the PLSC of both) using features such as position.
+"""
+his uses PLSR to predict the activations of a player (or the PLSC of both) using features such as position.
+"""
+# TODO code needs to be updated to use new evaluation metrics structure
 
-import glob
 import itertools
-import os
 import pickle
 from typing import List
 import numpy as np
 from matplotlib import pyplot as plt
-from numpy import std
-from scipy.special import softmax
 from scipy.stats import zscore
-from sklearn.cross_decomposition import PLSRegression
-from sklearn.metrics import explained_variance_score
 from tqdm import tqdm
 from cache_to_disk import cache_to_disk, delete_disk_caches_for_function
 
-from king_of_the_hill.analysis.plotting.helpers import get_relative_player_positions, get_relative_hill_positions, \
-    score_shared_activity_via_plsc, find_metrics_paths, action_to_one_hot, get_var_explained_via_plsr
-from king_of_the_hill.analysis.plotting.filters import filter_by_deaths, filter_by_mutual_vision
-from king_of_the_hill.analysis.plotting.helpers import get_action_softmax
-from king_of_the_hill.wandb_api import make_dir_if_not_exists
+from analysis.filters import filter_by_deaths, filter_by_mutual_vision
+from analysis.helpers import get_action_softmax, action_to_one_hot, find_metrics_paths, get_relative_hill_positions, \
+    get_relative_player_positions, score_shared_activity_via_plsc, get_var_explained_via_plsr
+from utils.wandb_api import make_dir_if_not_exists
 
 player_colours = {'player_0': 'red', 'player_1': 'blue'}
 

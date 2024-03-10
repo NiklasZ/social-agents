@@ -3,16 +3,15 @@ import os
 import pickle
 from typing import List
 import numpy as np
-from cache_to_disk import cache_to_disk, delete_disk_caches_for_function
+from cache_to_disk import cache_to_disk
 from sklearn.cross_decomposition import PLSRegression
 from sklearn.metrics import explained_variance_score, r2_score
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 
-# from king_of_the_hill.analysis.plotting.distances import get_relative_player_positions
-from king_of_the_hill.analysis.plotting.filters import filter_by_deaths, filter_by_mutual_vision
-from king_of_the_hill.analysis.plotting.helpers import get_relative_player_positions
-from king_of_the_hill.wandb_api import make_dir_if_not_exists
+from analysis.filters import filter_by_deaths, filter_by_mutual_vision
+from analysis.helpers import get_relative_player_positions
+from utils.wandb_api import make_dir_if_not_exists
 
 
 @cache_to_disk(31)  # Cache for 31 days

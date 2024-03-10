@@ -1,3 +1,12 @@
+"""
+This plots neurons scores over different training checkpoints to identify dormant neurons. It generates
+a histogram of neuron score distribution for each checkpoint. For more, see:
+'The Dormant Neuron Phenomenon in Deep Reinforcement Learning' by Sokar et al. (2023)
+paper: https://arxiv.org/pdf/2302.12902.pdf, code: https://github.com/google/dopamine/tree/master/dopamine/labs/redo
+"""
+# TODO code needs to be updated to use new evaluation metrics structure
+
+
 import glob
 import os
 import pickle
@@ -6,14 +15,7 @@ import re
 import numpy as np
 from matplotlib import pyplot as plt
 
-from king_of_the_hill.wandb_api import make_dir_if_not_exists
 
-"""
-This is file plots neurons scores over different training checkpoints to identify dormant neurons. It generates
-a histogram of neuron score distribution for each checkpoint. For more, see:
-'The Dormant Neuron Phenomenon in Deep Reinforcement Learning' by Sokar et al. (2023)
-paper: https://arxiv.org/pdf/2302.12902.pdf, code: https://github.com/google/dopamine/tree/master/dopamine/labs/redo
-"""
 
 player_colours = {'player_0': 'red', 'player_1': 'blue'}
 

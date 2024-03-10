@@ -1,25 +1,24 @@
-# Tries to find the number of coordinated dimensions in behaviours via canonical correlation analysis
+"""
+Finds the number of coordinated dimensions in behaviours via canonical correlation analysis
+"""
+# TODO code needs to be updated to use new evaluation metrics structure
+
 import itertools
 import pickle
 from typing import List
 import textwrap
 from cache_to_disk import cache_to_disk, delete_disk_caches_for_function
 from matplotlib import pyplot as plt
-from scipy.io import loadmat
 import numpy as np
 from scipy.stats import zscore
 from sklearn.cross_decomposition import CCA
 from scipy.stats import pearsonr
-from sklearn.metrics import explained_variance_score
-from sklearn.cross_decomposition import PLSRegression
-from numpy.random import randint
 from tqdm import tqdm
 
-from king_of_the_hill.analysis.plotting.filters import filter_by_mutual_vision
-from king_of_the_hill.analysis.plotting.helpers import find_metrics_paths, get_relative_hill_positions, \
-    get_action_softmax, get_relative_player_positions, action_to_one_hot, get_kwargs_matching, \
-    get_var_explained_via_plsr, random_shift
-from king_of_the_hill.wandb_api import make_dir_if_not_exists
+from analysis.filters import filter_by_mutual_vision
+from analysis.helpers import find_metrics_paths, action_to_one_hot, get_relative_hill_positions, random_shift, \
+    get_var_explained_via_plsr
+from utils.wandb_api import make_dir_if_not_exists
 
 
 @cache_to_disk(31)  # Cache for 31 days

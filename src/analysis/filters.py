@@ -1,10 +1,16 @@
 import copy
 from typing import List
 import numpy as np
+# TODO code needs to be updated to use new evaluation metrics structure
 
 
-# Only gets activations for timesteps where all players are alive.
 def filter_by_deaths(metrics: dict, player_ids: List[str]) -> dict:
+    """
+    Only gets activations for timesteps where all players are alive
+    @param metrics: metrics dict
+    @param player_ids: ids to consider
+    @return:
+    """
     num_episodes = len(metrics['rewards'])
     output_metrics = copy.deepcopy(metrics)
     for i in range(num_episodes):
@@ -23,9 +29,14 @@ def filter_by_deaths(metrics: dict, player_ids: List[str]) -> dict:
     return output_metrics
 
 
-# Only gets activations for timesteps where players can see each other
 # TODO refactor to use above function except for vision mask line
 def filter_by_mutual_vision(metrics: dict, player_ids: List[str]) -> dict:
+    """
+    Only gets activations for timesteps where players can see each other
+    @param metrics: metrics dict
+    @param player_ids: ids to consider
+    @return:
+    """
     num_episodes = len(metrics['rewards'])
     output_metrics = copy.deepcopy(metrics)
     for i in range(num_episodes):

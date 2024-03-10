@@ -1,22 +1,22 @@
+"""
+This plots the distribution of actions when an agent of some run X plays against an agent from some run Y. We do this
+for the top k agents of each playable colour and plot the action distribution for each matchup.
+"""
+# TODO code needs to be updated to use new evaluation metrics structure
+
 import glob
 import os
 import pickle
 from typing import List
 import matplotlib.pyplot as plt
 import numpy as np
-from cache_to_disk import cache_to_disk, delete_disk_caches_for_function
 from tqdm import tqdm
-from matplotlib.ticker import PercentFormatter
-from king_of_the_hill.analysis.plotting.cross_play_returns import get_cross_play_returns
-from king_of_the_hill.wandb_api import make_dir_if_not_exists
 
-"""
-This plots the distribution of actions when an agent of some run X plays against an agent from some run Y. We do this
-for the top k agents of each playable colour and plot the action distribution for each matchup.  
-"""
-
+from analysis.cross_play_returns import get_cross_play_returns
+from utils.wandb_api import make_dir_if_not_exists
 
 player_colours = {'player_0': 'red', 'player_1': 'blue'}
+
 
 def get_cross_play_action_distribution(metrics_paths: List[str],
                                        player_returns: dict,
@@ -113,4 +113,3 @@ if __name__ == "__main__":
                                              player_id=p,
                                              player_actions=player_actions,
                                              top_k=top_k)
-

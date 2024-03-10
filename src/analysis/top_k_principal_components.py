@@ -1,3 +1,6 @@
+# Plots Activity PCA top k Principal Components' correlation
+# TODO code needs to be updated to use new evaluation metrics structure
+
 from datetime import datetime
 from typing import Dict
 import scipy.stats
@@ -5,9 +8,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from tqdm import tqdm
 import pickle
-from king_of_the_hill.wandb_api import make_dir_if_not_exists
-
-# Plots Activity PCA top k Principal Components' correlation
+from utils.wandb_api import make_dir_if_not_exists
 
 checkpoint_range_dir = 'king_of_the_hill/evaluation/run-1675134255/checkpoint-range-50-1950-2023-02-01-23-14-11'
 now = datetime.now()
