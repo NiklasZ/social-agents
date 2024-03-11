@@ -56,7 +56,7 @@ python src/training/train.py new \
 ```
 The above command trains the agents on the CPU only. To use the GPU, specify `--num-gpus 1` as well.
 
-In order to train a population of agents together the additional `--population-training` must be specified. Here an
+In order to train a population of agents together the additional `--population-self-play` must be specified. Here an
 example for the `king_of_the_hill` environment:
 ```bash
 python src/training/train.py new \
