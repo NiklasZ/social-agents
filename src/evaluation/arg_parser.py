@@ -4,13 +4,6 @@ import shlex
 from typing import Optional
 from utils.helpers import check_json_has_fields
 
-# Maps a particular layer name to the property name and index of the respective dimension in the activation
-supported_activation_layers = {
-    'lstm_hidden': ['lstm', 0],
-    'lstm_cell': ['lstm', 1],
-    'rnn': ['rnn', 0],
-    'action_logits': ['_logits_branch', 0]
-}
 
 example_players_structure = json.dumps({
     'policy_id': 'policy0',
