@@ -26,7 +26,7 @@ example_activation_structure = json.dumps({
 })
 
 example_meltingpot_bots_structure = json.dumps({
-    'bot_name' : 'bot0',
+    'bot_name': 'bot0',
 })  
 
 

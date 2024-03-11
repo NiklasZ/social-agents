@@ -169,3 +169,24 @@ def merge_dict(a: dict, b: dict) -> dict:
         else:
             a[key] = b[key]
     return a
+
+
+def run_once(func):
+    """Decorator to ensure a function is only run once with the same arguments"""
+    cache = {}
+
+    def wrapper(*args, **kwargs):
+        # Convert args and kwargs to a hashable form
+        # Create a cache key from the hashable arguments
+        cache_key = (json.dumps(args), json.dumps(kwargs, sort_keys=True))
+
+        # If the function was called with these arguments before, return the cached result
+        if cache_key in cache:
+            return cache[cache_key]
+
+        # Otherwise, call the function and cache the result
+        result = func(*args, **kwargs)
+        cache[cache_key] = result
+        return result
+
+    return wrapper
