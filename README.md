@@ -56,6 +56,26 @@ python src/training/train.py new \
 ```
 The above command trains the agents on the CPU only. To use the GPU, specify `--num-gpus 1` as well.
 
+In order to train a population of agents together the additional `--population-training` must be specified. Here an
+example for the `king_of_the_hill` environment:
+```bash
+python src/training/train.py new \
+  --num-workers 1 \
+  --agent-roles default default \
+  --env king_of_the_hill \
+  --map-name 13x13_minified_v2 \
+  --model-name baseline_cnn_lstm \
+  --episodes-per-training-iteration 8 \
+  --checkpoint-frequency 200 \
+  --model-sharing independent \
+  --training-iterations 2500 \
+  --population-self-play "{'population_per':8, 
+                        'min_games_against_new_opponent':10, 
+                        'recent_reward_window':30, 
+                        'curriculum_end_timesteps':50, 
+                        'sufficient_improved_population_ratio':0.5, 
+                        'policy_improvement_factor': 1.1}"
+```
 
 ## Evaluation
 
@@ -72,8 +92,8 @@ Here is an example command to use to evaluate a pair of agents in the environmen
 python src/evaluation/evaluate.py \
   --episodes 3 \
   --num-gpus 1 \
-  --players "{'policy_id':'policy_0', 'run_id':'05c94_00000', 'checkpoint':1500, 'role':'default'}"
-            "{'policy_id':'policy_1', 'run_id':'05c94_00000', 'checkpoint':1500, 'role':'default'}"
+  --players "{'policy_id':'policy_0_p1', 'run_id':'run-fd734f6e5', 'checkpoint':2000, 'role':'default'}" \
+            "{'policy_id':'policy_1_p0', 'run_id':'run-fd734f6e5', 'checkpoint':2000, 'role':'default'}"
   ```
 
 Here is an example command to use to evaluate trained agents with Meltingpot-provided agents
@@ -81,14 +101,17 @@ Here is an example command to use to evaluate trained agents with Meltingpot-pro
 python src/evaluation/evaluate.py \
   --episodes 3 \
   --num-gpus 1 \
-  --players "{'policy_id':'policy0', 'run_id':'f541e_00000', 'checkpoint':20, 'role':'default'}" \
-            "{'policy_id':'policy1', 'run_id':'f541e_00000', 'checkpoint':20, 'role':'default'}" \
+  --players "{'policy_id':'policy_0_p0', 'run_id':'run-fd32be957', 'checkpoint':2500, 'role':'default'}" \
+            "{'policy_id':'policy_1_p1', 'run_id':'run-fd32be957', 'checkpoint':2500, 'role':'default'}" \
   --meltingpot-bots "{'bot_name': 'territory__open__aggressor_0'}" \
                     "{'bot_name': 'territory__open__aggressor_1'}" 
 ```
 
 Where the above pulls the specified policies from wandb and has them play against each other on the environment 
-they trained on.
+they trained on. Other useful flags for evaluation include `--record-episodes` to save videos of the agents and
+`--activations "{'layer_path':'lstm', 'activation_path':'1.0', 'alias':'lstm_hidden'}"`, which will save the 
+activations of the specified layer. In the above example, the layer is the LSTM with the hidden state from the output.
+All evaluations will be saved locally to `eval_games` with results in a `metrics.pkl` file.
 
 ## AWS
 
