@@ -3,8 +3,6 @@ import numpy as np
 import ray
 from ray.tune import tune
 from src.training.arg_parser import get_train_args
-from src.training.callbacks.enhanced_self_play import PolicyScorer
-from src.training.callbacks.pooling_self_play import PolicyPoolManager
 from src.training.callbacks.trial_state_logger import PrintResultCallback
 from src.training.wandb_logger_v2 import AnotherWandbLoggerCallback
 from src.utils.generate_config import get_alg_config
@@ -49,12 +47,6 @@ def train(run_config: dict):
         stopping_conditions.append(stop_afer_k_iterations)
 
         # Set up policy score tracking across workers
-        if run_config['generalising_self_play']:
-            manager = PolicyScorer.options(name='policy_scorer').remote('av')
-
-        if run_config['pooled_self_play']:
-            manager = PolicyPoolManager.options(name='policy_manager').remote(config, run_config)
-
         if run_config['population_self_play']:
             manager = PopulationManager.options(name='population_manager').remote(config, run_config)
 

@@ -9,8 +9,6 @@ from ray.tune.registry import register_env
 from src.environment.configs import PLAYABLE_MAPS, ENV_TRAINING_METRICS_CALLBACKS, MELTING_POT_CONFIG_FUNCS, \
     DEFAULT_ENV_SETTINGS
 from src.models.model_catalog import get_model
-from src.training.callbacks.enhanced_self_play import EnhancedSelfPlayCallback
-from src.training.callbacks.pooling_self_play import PoolingSelfPlayCallback
 from src.utils.helpers import get_trailing_number, merge_dict
 from training.callbacks.population_self_play import PopulationSelfPlayCallback, training_policy_mapping_fn
 from training.policies.idle_policy import IdlePolicy
@@ -200,11 +198,7 @@ def get_alg_config(run_config: Dict, training=True) -> Dict:
     if ENV_TRAINING_METRICS_CALLBACKS[run_config['env']]:
         chosen_callbacks.append(ENV_TRAINING_METRICS_CALLBACKS[run_config['env']])
     # Choose whether to add callbacks that impact opponent selection for training
-    if run_config['generalising_self_play'] and training:
-        chosen_callbacks.append(EnhancedSelfPlayCallback)
-    elif run_config['pooled_self_play'] and training:
-        chosen_callbacks.append(PoolingSelfPlayCallback)
-    elif run_config['population_self_play'] and training:
+    if run_config['population_self_play'] and training:
         chosen_callbacks.append(PopulationSelfPlayCallback)
 
     config['callbacks'] = make_multi_callbacks(chosen_callbacks)
@@ -218,10 +212,6 @@ def get_alg_config(run_config: Dict, training=True) -> Dict:
 
     # Sets the number of environments to explore simultaneously. Not Sure if it is beneficial to change this.
     config['num_envs_per_worker'] = run_config['num_parallel_envs'] // run_config['num_workers']
-
-    if run_config['pooled_self_play']:
-        config['evaluation_num_workers'] = run_config['pooled_self_play']['evaluation_num_workers']
-        config['evaluation_interval'] = run_config['pooled_self_play']['evaluation_interval']
 
     if run_config['population_self_play']:
         config['create_env_on_driver'] = True

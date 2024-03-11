@@ -8,30 +8,6 @@ from src.environment.configs import DEFAULT_ENV_SETTINGS, ENV_ALIASES, MELTING_P
 from src.environment.helpers import validate_environment_roles
 from src.models.model_catalog import MODELS
 
-default_pooled_self_play_settings = json.dumps(
-    {'evaluation_num_workers': 8,
-     'mastered_pool_max_prob': 0.4,  # probability of selecting opponents from mastery pool
-     'reward_distance': 30,  # distance in reward for an agent to be considered having "won"
-     'consecutive_training_wins_needed': 3,  # how many training episodes an agent needs to win to master an opponent
-     'consecutive_eval_wins_needed': 5,  # how many evaluation episodes an agent needs to win to master an opponent
-     # We never want rllib to evaluate automatically in this mode, but the framework will not run unless we specify one.
-     # This is stupid and shouldn't be.
-     'evaluation_interval': 99999999999999999,
-     # Whether to initialise agents with the same weights or not. Note, this is not the same as seeding. Rather, we copy
-     # the weights from one policy to all the others at the start.
-     'init_with_shared_weights': False,
-     # Who the first frozen opponent to train against should be. Can be "random policy" or "frozen main policy".
-     'init_opponents': 'frozen main policy',
-     # Determines how to sample an opponent from a pool. Supported options are:
-     # "uniform": every opponent has the same probability
-     # "inverse last minimum train reward": samples inversely with respect to the lowest reward achieved against that
-     # opponent the last time they played during training. Effectively, opponents the main policy has recently gotten a
-     # high reward against will be sampled less often than those with a low reward.
-     # This approach is very responsive to recent changes in performance.
-     'mastered_pool_sampling': 'uniform',
-     'competing_pool_sampling': 'uniform'
-     }
-)
 
 default_population_self_play_settings = json.dumps({
     'population_per': 4,  # number of agents per player, role or overall. This depends on the model sharing mode.
@@ -140,12 +116,6 @@ def get_train_args(arg_list: List[str] = None):
     parser_new.add_argument('--model-sharing', type=str, required=False, default='independent',
                             help='determines whether agents should share models or not. '
                                  f"Available options are: {', '.join(MODEL_SHARING_OPTIONS)}")
-    parser_new.add_argument('--generalising-self-play', action=argparse.BooleanOptionalAction, required=False,
-                            default=False,
-                            help='makes agent play against itself and past agents. Cannot be used alongside')
-    parser_new.add_argument('--pooled-self-play', type=str, required=False, default=None,
-                            help='settings JSON for the pooled-self-play. '
-                                 f"Default is: {default_pooled_self_play_settings}")
     parser_new.add_argument('--population-self-play', type=str, required=False, default=None,
                             help='Lets agents learn together as a population. '
                                  f"Default setting for this is: {default_population_self_play_settings}")
@@ -205,23 +175,8 @@ def get_train_args(arg_list: List[str] = None):
         if args.framework != 'torch':
             raise Exception("Deep learning framework must be 'torch' as 'tf2' is not supported yet.")
 
-        if sum(bool(e) for e in [args.population_self_play, args.generalising_self_play, args.pooled_self_play]) > 1:
-            raise Exception('Only one self-play callback method can be enabled at a time.')
-
-        if any([args.population_self_play, args.generalising_self_play, args.pooled_self_play])  and args.solo_play:
-            raise Exception('Self-play methods cannot be used alongside solo play.')
-
-        if args.pooled_self_play or args.generalising_self_play:
-            raise Exception('Advanced self-play methods are outdated and need to be re-implemented.')
-
-        if args.pooled_self_play and not args.multi_model:
-            raise Exception('Pooled self-play currently only supports multiple models.')
-
-        # Check pooled self-play dict to make sure keys are valid.
-        if args.pooled_self_play:
-            args.pooled_self_play = merge_input_json_with_default_json(args.pooled_self_play,
-                                                                       default_pooled_self_play_settings,
-                                                                       'pooled_self_play')
+        if any([args.population_self_play]) and args.solo_play:
+            raise Exception('Population self-play methods cannot be used alongside solo play.')
 
         if args.population_self_play:
             args.population_self_play = merge_input_json_with_default_json(args.population_self_play,
