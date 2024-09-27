@@ -70,6 +70,7 @@ class BaselineCNNLSTM(RecurrentNetwork, torch.nn.Module):
         # Holds the current "base" output (before logits layer).
         self._features = None
 
+
     @override(RecurrentNetwork)
     def forward(
             self,

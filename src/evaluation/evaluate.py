@@ -13,6 +13,12 @@ import glob
 import warnings
 import pickle
 import wandb
+import sys
+
+from wandb.sdk.lib.apikey import api_key
+
+sys.path.append('..')
+sys.path.append('../..')
 
 from environment.helpers import validate_environment_roles
 from evaluation.observation_recorder import ObservationRecorder
@@ -20,6 +26,7 @@ from src.environment.configs import PLAYABLE_MAPS, ENV_EVAL_METRIC_FUNCS, MELTIN
 from src.environment.wrappers import RenderCropper
 from src.evaluation.activations import ActivationExtractor, NeuronScorer
 from src.evaluation.arg_parser import get_evaluation_args
+from src.training.arg_parser import get_train_args
 from src.models.model_catalog import MODELS
 from src.utils.helpers import get_trailing_number, to_player_name, get_world_rgb_bounding_box, \
     remove_prefix_from_files_in
@@ -67,7 +74,8 @@ def evaluate(run_config: Dict):
                                                                                     run_config=copy.deepcopy(
                                                                                         run_config),
                                                                                     run_id=run_id,
-                                                                                    checkpoint_folder=checkpoint_folder)
+                                                                                    checkpoint_folder=checkpoint_folder,
+                                                                                    )
 
         a_d = {'checkpoint_name': checkpoint_name,
                'rllib_run_name': agent_run_config['rllib_run_name'],
@@ -159,6 +167,8 @@ def evaluate_agents(agent_paths: List[str],
                    [f"{b['name']}" for b in bot_dicts]
     print(f"Evaluating policies: {', '.join(policy_names)} in {env_name}")
     matchup_path = f"{eval_path}/{'__VS__'.join(policy_names)}"
+    ## TODO: remove below when actually running
+    matchup_path = f"{eval_path}/{'2vs4'}"
     player_names = [a_d['player'] for a_d in agent_dicts]
     bot_names = [b_d['player'] for b_d in bot_dicts]
     player_and_bot_names = player_names + bot_names

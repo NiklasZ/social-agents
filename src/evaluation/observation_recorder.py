@@ -40,10 +40,17 @@ class ObservationRecorder:
         assert not self.closed, "Cannot capture frame from closed recorder"
 
         for p in observations.keys():
-            assert observations[p].shape == self.frame_shapes[
-                p], f"Observation shape mismatch for player {p}. Expected {self.frame_shapes[p]}, got {observations[p].shape}"
-            log_verbose(f"Capturing video frame for player {p}", self.verbose)
-            self.recorded_frames[p].append(observations[p])
+            if isinstance(observations[p], np.ndarray):
+                assert observations[p].shape == self.frame_shapes[
+                    p], f"Observation shape mismatch for player {p}. Expected {self.frame_shapes[p]}, got {observations[p].shape}"
+                log_verbose(f"Capturing video frame for player {p}", self.verbose)
+                self.recorded_frames[p].append(observations[p])
+            elif isinstance(observations[p], dict):
+                rbg_key = 'RGB'
+                assert observations[p][rbg_key].shape == self.frame_shapes[
+                    p], f"Observation shape mismatch for player {p} and key {rbg_key}. Expected {self.frame_shapes[p]}, got {observations[p][rbg_key].shape}"
+                log_verbose(f"Capturing video frame for player {p} and key {rbg_key}", self.verbose)
+                self.recorded_frames[p].append(observations[p][rbg_key])
 
     def close(self):
         """

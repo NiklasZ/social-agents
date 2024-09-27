@@ -1,6 +1,6 @@
 PREDATOR_AND_PREY_OPEN_MAPS = {
-    'default': {
-        'map': """
+  'default': {
+    'map': """
                 /;___________________,/
                 ;]*******************[,
                 !vvvvvvvvvvvvvvvvvvvvv|
@@ -21,11 +21,11 @@ PREDATOR_AND_PREY_OPEN_MAPS = {
                 L+*******************=J
                 /L~~~~~~~~~~~~~~~~~~~J/
                 """,
-        'description': "copy of the default map provided by DeepMind's Melting Pot Environment",
-    },
+    'description': "copy of the default map provided by DeepMind's Melting Pot Environment",
+  },
 
-    '13x13_example': {
-        'map': """
+  '13x13_example': {
+    'map': """
                 /;_________,/
                 ;]*********[,
                 !vvvvvvvvvvv|
@@ -40,6 +40,44 @@ PREDATOR_AND_PREY_OPEN_MAPS = {
                 L+*********=J
                 /L~~~~~~~~~J/
                 """,
-        'description': 'a smaller example map for testing purposes '
-    }
+    'description': 'a smaller example map for testing purposes '
+  },
+
+  '10x10_example': {
+    'map': """
+        ;__________,
+        !'''a''''a'|
+        !'a''''a'''|
+        !''a'''''^^|
+        !XXa''''<**|
+        !XaXa'''<**|
+        !XaXa'''<**|
+        !XXa''''<**|
+        !''''''''vv|
+        !'''a''''a'|
+        !'a'a''''a'|
+        L~~~~~~~~~~J
+        """,
+    'description': 'a very small example map for testing purposes added on 09/16/2024'
+  },
+
+  '12x12_example': {
+    'map': """
+    ;____________,
+    !'''a''''''a'|
+    !'a''''''a'''|
+    !'a''''''a'''|
+    !''a'''''''^^|
+    !XXa''''''<**|
+    !XaXa'''''<**|
+    !XaXa'''''<**|
+    !XX''a''''<**|
+    !''''''''''vv|
+    !''''''''''''|
+    !'a'a''''''a'|
+    !'a'a''''''a'|
+    L~~~~~~~~~~~~J
+    """,
+    'description': 'a very small example map for testing purposes added on 09/16/2024'
+  },
 }

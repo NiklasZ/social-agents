@@ -1,3 +1,9 @@
+import sys
+import os
+HOME = os.environ['HOME']
+sys.path.append(f'{HOME}/Documents/GitHub/social-agents/')
+sys.path.append(f'{HOME}/Documents/GitHub/social-agents/src/')
+sys.path.append(f'{HOME}/Documents/GitHub/social-agents/src/environment')
 from environment.clean_up.maps import CLEANUP_MAPS
 from environment.coins.config import COIN_DEFAULT_CONFIG
 from environment.coins.maps import COINS_MAPS

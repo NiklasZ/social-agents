@@ -1,0 +1,13 @@
+python src/training/train.py new \
+  --num-workers 8 \
+  --agent-roles predator prey \
+  --env predator_and_prey_open \
+  --map-name 10x10_example \
+  --model-name baseline_cnn_fc_lstm \
+  --episodes-per-training-iteration 8 \
+  --checkpoint-frequency 25 \
+  --model-sharing independent \
+  --sgd-minibatch-size 128 \
+  --training-iterations 5000 \
+  --num-gpus 0 \
+  --rllib-path /e/predator_prey/open_field_10x10/trial_2

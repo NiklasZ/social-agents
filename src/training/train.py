@@ -1,3 +1,5 @@
+import json
+import os.path as path
 from typing import Mapping
 import numpy as np
 import ray
@@ -7,7 +9,6 @@ from src.training.callbacks.trial_state_logger import PrintResultCallback
 from src.training.wandb_logger_v2 import AnotherWandbLoggerCallback
 from src.utils.generate_config import get_alg_config
 from training.callbacks.population_self_play import PopulationManager, has_at_least_one_policy_per_player
-
 
 # TODO make wandb optional
 def train(run_config: dict):
@@ -19,26 +20,50 @@ def train(run_config: dict):
     agent_algorithm = 'PPO'
     rllib_path = run_config['rllib_path']
     manager = None
+    # Save the run_config
+    if run_config['command'] == 'resume':
+        with open(path.join(rllib_path, 'run_config.json'), 'w') as f:
+            json.dump(run_config, f)
 
     if run_config['command'] == 'resume':
-        raise Exception('Resume has not been maintained and needs to be re-implemented.')
-        # print(f"Resuming wandb run {run_config['run_id']}")
+        # raise Exception('Resume has not been maintained and needs to be re-implemented.')
+        print(f"Resuming wandb run {run_config['rllib_run_name']}")
         # config, run_config = download_train_state(rllib_path=rllib_path, api_key=api_key, run_config=run_config)
-        #
-        # results = tune.run(agent_algorithm,
-        #                    config=config,
-        #                    resume="LOCAL",
-        #                    local_dir=rllib_path,
-        #                    name=run_config['rllib_run_name'],
-        #                    callbacks=[AnotherWandbLoggerCallback(api_key=api_key,
-        #                                                          project='social_marl_koth',
-        #                                                          group=run_config['group_name'],
-        #                                                          name=run_config['rllib_run_name'],
-        #                                                          resume='must',
-        #                                                          save_checkpoints=True
-        #                                                          )])
+        config = get_alg_config(run_config)
+        stopping_conditions = []
+        stopping_func = lambda trial_id, result: any([condition(trial_id, result) for condition in stopping_conditions])
+        stop_afer_k_iterations = lambda trial_id, result: result['training_iteration'] >= run_config[
+            'training_iterations']
+        stopping_conditions.append(stop_afer_k_iterations)
+
+        # Set up policy score tracking across workers
+        if run_config['population_self_play']:
+            manager = PopulationManager.options(name='population_manager').remote(config, run_config)
+
+            # Stop when we no longer have a training policy per player
+            def stop_when_out_of_pops(trial_id: str, result: Mapping) -> bool:
+                return not has_at_least_one_policy_per_player(list(result['curriculum_avg_rewards'].keys()),
+                                                              len(run_config['agent_roles']))
+
+            stopping_conditions.append(stop_when_out_of_pops)
+
+        print(f"Training for {run_config['training_iterations']} iterations")
+        results = tune.run(agent_algorithm,
+                           config=config,
+                           resume="LOCAL",
+                           local_dir=rllib_path,
+                           name=run_config['rllib_run_name'],
+                           callbacks=[AnotherWandbLoggerCallback(api_key='3ad9da29bdf2117fdef01a285d53891478d62e92',
+                                                                 project='social_marl_koth',
+                                                                 group=run_config['group_name'],
+                                                                 name=run_config['rllib_run_name'],
+                                                                 resume='must',
+                                                                 save_checkpoints=True
+                                                                 )])
     else:
         config = get_alg_config(run_config)
+        # config.training(_enable_learner_api=False)
+        # config.rl_module(_enable_rl_module_api=False)
 
         stopping_conditions = []
         stopping_func = lambda trial_id, result: any([condition(trial_id, result) for condition in stopping_conditions])
@@ -64,7 +89,8 @@ def train(run_config: dict):
             stop=stopping_func,  # {'training_iteration': run_config['training_iterations']},
             config=config,
             metric='episode_reward_mean',
-            local_dir=rllib_path,
+            # local_dir=rllib_path,
+            storage_path=rllib_path,
             mode='max',
             name=run_config['rllib_run_name'],
             checkpoint_at_end=True,
@@ -80,6 +106,7 @@ def train(run_config: dict):
                                            config={'run_config': run_config, 'full_config': config},
                                            save_checkpoints=True,
                                            id=run_config['run_id'],
+                                           api_key='3ad9da29bdf2117fdef01a285d53891478d62e92',
                                            ),
                 PrintResultCallback()
             ]

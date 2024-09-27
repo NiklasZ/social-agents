@@ -45,6 +45,7 @@ def get_alg_config(run_config: Dict, training=True) -> Dict:
     config['_enable_rl_module_api'] = False
     config['_enable_learner_api'] = False
 
+
     # Choose a map to play
     map_name = run_config['map_name']
     if map_name not in PLAYABLE_MAPS[run_config['env']]:

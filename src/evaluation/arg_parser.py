@@ -37,7 +37,9 @@ def get_evaluation_args(arg_str: Optional[str] = None):
                         help='whether or not to record videos of episodes played')
     parser.add_argument('--record-observations', action=argparse.BooleanOptionalAction, required=False, default=False,
                         help="set in order to also get video recordings of agent's observations")
-    parser.add_argument('--entity-name', type=str, required=False, default='ece-239-as',
+    parser.add_argument('--using-local-config', action=argparse.BooleanOptionalAction, required=False, default=False,
+                        help='set when you would like to use a local config file and model savepoint instead of the one on wandb')
+    parser.add_argument('--entity-name', type=str, required=False, default='qinli2021-ucla',
                         help="name of the entity whose run should be resumed")
     parser.add_argument('--wandb-project-name', required=False, type=str, default='social_marl_koth',
                         help="the wandb's project name")

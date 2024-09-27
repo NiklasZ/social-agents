@@ -80,6 +80,7 @@ def get_train_args(arg_list: List[str] = None):
 
     # Arguments for a new run
     parser_new = subparsers.add_parser('new', help='when you want to train a new agent.')
+    # parser_new = subparsers.add_parser('resume', help='when you want to train a new agent.')
     parser_new.add_argument('--run-name', type=str, required=False, default='run',
                             help='the name of this training run')
     parser_new.add_argument('--group-name', type=str, required=False, default=None,
@@ -138,11 +139,13 @@ def get_train_args(arg_list: List[str] = None):
                             help='toggle in order to allow debugging of code by running it on a local process.')
     parser_new.add_argument('--rllib-path', required=False, type=str, default='/tmp/ray_results',
                             help='directory where to save rllib training states to')
+    parser_new.add_argument('--rllib-run-name', required=False, type=str, default=None,
+                            help='name of the rllib run')
 
     args = parser.parse_args(arg_list)
 
-    if args.command == 'new':
-        args.run_id = generate_run_id(args.run_name)
+    if args.command == 'new' or args.command == 'resume':
+        args.run_id = generate_run_id(args.run_name) if not args.rllib_run_name else args.rllib_run_name
         args.rllib_run_name = args.run_id # Kept for backwards compatibility - should be removed later
 
         if args.env not in DEFAULT_ENV_SETTINGS:

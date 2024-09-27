@@ -114,6 +114,34 @@ def get_rgb(obs_dict: Union[dict, spaces.Dict]):
 def get_rgb_space(obs_dict: spaces.Dict) -> spaces.Dict:
     return spaces.Dict(get_rgb(obs_dict))
 
+class DeepmindObservationWrapper(BaseWrapper):
+    def __init__(self, env: MeltingPotEnv):
+        self._env = env
+        self._agent_ids = self._env.get_agent_ids()
+        # self.observation_space = get_rgb_space(self._env.observation_space)
+        self.observation_space = self._env.observation_space
+        self.action_space = self._env.action_space
+        super().__init__()
+
+    def reset(self, *args, **kwargs) -> [MultiAgentDict, MultiAgentDict]:
+        # modify obs
+        ob, info = self._env.reset()
+        return ob, info
+
+    def step(self, *args, **kwargs):
+        # modify obs
+        ob, reward, terminated, truncated, info = self._env.step(*args, **kwargs)
+        return ob, reward, terminated, truncated, ob | info
+
+
+def get_rgb(obs_dict: Union[dict, spaces.Dict]):
+    return {p: obs_dict[p]['RGB'] for p in obs_dict.keys()}
+
+
+def get_rgb_space(obs_dict: spaces.Dict) -> spaces.Dict:
+    return spaces.Dict(get_rgb(obs_dict))
+
+
 
 # Stacks k frames in a multi-agent environment
 # Loosely inspired by ray/rllib/env/wrappers/atari_wrappers.py

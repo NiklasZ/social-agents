@@ -10,13 +10,18 @@ from src.deepmind.meltingpot.substrate import get_factory_from_config
 from ml_collections import config_dict
 from ray.rllib.models import ModelCatalog
 
-from src.environment.wrappers import RGBObservationWrapper, FrameStacker, FullRGBObservationWrapper
+from src.environment.wrappers import RGBObservationWrapper, FrameStacker, FullRGBObservationWrapper, \
+    DeepmindObservationWrapper
 from src.models.baseline_cnn_lstm import BaselineCNNLSTM
+from src.models.baseline_cnn_fc_lstm import BaselineCNNFCLSTM
 
 
 def register_models():
     ModelCatalog.register_custom_model(
-        'baseline_cnn_lstm', BaselineCNNLSTM
+        'baseline_cnn_lstm', BaselineCNNLSTM,
+    )
+    ModelCatalog.register_custom_model(
+        'baseline_cnn_fc_lstm', BaselineCNNFCLSTM,
     )
 
 
@@ -27,6 +32,17 @@ def get_model(name: str):
     assert name in MODELS, f"Model {name} not found in available models: {', '.join(MODELS.keys())}"
     return MODELS[name]
 
+def deepmind_observation_constructor():
+    def constructor(env_config):
+        config = config_dict.ConfigDict(env_config)
+        # config['default_player_roles'] = env_config['roles']
+        # print(config)
+        # There was an issue when build()
+        env = get_factory_from_config(config).build(env_config['roles'])
+        env = MeltingPotEnv(env)
+        env = DeepmindObservationWrapper(env)
+        return env
+    return constructor
 
 def stacked_rgb_observation_constructor(stack_frames: int):
     def constructor(env_config):
@@ -64,6 +80,14 @@ def single_rgb_observation_constructor():
 
 
 MODELS = {
+    'baseline_cnn_fc_lstm': {
+      'env_constructor': deepmind_observation_constructor(),
+      'model_config': {
+        'custom_model': 'baseline_cnn_fc_lstm',
+        '_disable_preprocessor_api': True,  # prevents flattening of the observation via preprocessor
+        'custom_model_config': {}
+      },
+    },
     'baseline_cnn_lstm': {
         'env_constructor': single_rgb_observation_constructor(),
         'model_config': {
