@@ -84,11 +84,12 @@ class BaselineCNNFCLSTM(RecurrentNetwork, nn.Module):
     # Define your CNN architecture
     for out_channels, kernel_size, stride in self.conv_filters[:-1]:
       # padding = self._compute_padding(in_size, kernel_size, stride)  # Calculate padding
-      padding = [0,0]
+      padding, out_size = same_padding(in_size, kernel_size, stride)
       layers.append(nn.Conv2d(in_channels, out_channels, kernel_size, stride, padding))
       layers.append(nn.ReLU())
       in_channels = out_channels  # Update in_channels for the next layer
-      in_size = self._compute_output_size(in_size, kernel_size, stride, padding)  # Update the output size
+      # in_size = self._compute_output_size(in_size, kernel_size, stride, padding)  # Update the output size
+      in_size = out_size
 
     # Add the last Conv2d layer
     out_channels, kernel_size, stride = self.conv_filters[-1]
@@ -103,8 +104,9 @@ class BaselineCNNFCLSTM(RecurrentNetwork, nn.Module):
 
     # Add post cnn fc layers
     out_channels, kernel_size, stride = self.conv_filters[-1]
-    out_size = self._compute_output_size(in_size, kernel_size, stride, padding)
-    post_cnn_flatten_shape = out_channels * out_size[0] * out_size[1]
+    # out_size = self._compute_output_size(in_size, kernel_size, stride, padding)
+    # post_cnn_flatten_shape = out_channels * out_size[0] * out_size[1]
+    post_cnn_flatten_shape = out_channels
     self.cnns[index].add_module('post_cnn_fc1', nn.Linear(post_cnn_flatten_shape, self.cnn_output_size))
     self.cnns[index].add_module('post_cnn_fc1_act', nn.ReLU())
 
@@ -114,17 +116,17 @@ class BaselineCNNFCLSTM(RecurrentNetwork, nn.Module):
     # Update the post-preprocess size to match the final output channels of the CNN
     self.post_preprocess_size += out_channels
 
-  def _compute_padding(self, input_size, kernel_size, stride):
-    """Helper function to compute the padding for 'same' padding with multi-dimensional kernel size."""
-    pad_h = max((input_size[0] - 1) * stride + kernel_size[0] - input_size[0], 0)
-    pad_w = max((input_size[1] - 1) * stride + kernel_size[1] - input_size[1], 0)
-    return (pad_h // 2, pad_w // 2)
-
-  def _compute_output_size(self, input_size, kernel_size, stride, padding):
-    """Helper function to compute the output size after a Conv2d layer with multi-dimensional kernel size."""
-    output_height = (input_size[0] + 2 * padding[0] - kernel_size[0]) // stride + 1
-    output_width = (input_size[1] + 2 * padding[1] - kernel_size[1]) // stride + 1
-    return output_height, output_width
+  # def _compute_padding(self, input_size, kernel_size, stride):
+  #   """Helper function to compute the padding for 'same' padding with multi-dimensional kernel size."""
+  #   pad_h = max((input_size[0] - 1) * stride + kernel_size[0] - input_size[0], 0)
+  #   pad_w = max((input_size[1] - 1) * stride + kernel_size[1] - input_size[1], 0)
+  #   return (pad_h // 2, pad_w // 2)
+  #
+  # def _compute_output_size(self, input_size, kernel_size, stride, padding):
+  #   """Helper function to compute the output size after a Conv2d layer with multi-dimensional kernel size."""
+  #   output_height = (input_size[0] + 2 * padding[0] - kernel_size[0]) // stride + 1
+  #   output_width = (input_size[1] + 2 * padding[1] - kernel_size[1]) // stride + 1
+  #   return output_height, output_width
 
   @override(RecurrentNetwork)
   def forward(self, input_dict, state, seq_lens):
@@ -173,14 +175,15 @@ class BaselineCNNFCLSTM(RecurrentNetwork, nn.Module):
     )
 
     # Pass the concatenated input through the LSTM
-    lstm_out, [h, c] = self.lstm(lstm_inputs, [state[0].unsqueeze(0), state[1].unsqueeze(0)])
+    # lstm_out, [h, c] = self.lstm(lstm_inputs, [state[0].unsqueeze(0), state[1].unsqueeze(0)])
+    action_out, [h, c] = self.forward(lstm_inputs, state, seq_lens)
 
     # Apply the fully connected layer post-LSTM
-    self._features = self.post_lstm_fc1_act(self.post_lstm_fc1(lstm_out))
+    # self._features = self.post_lstm_fc1_act(self.post_lstm_fc1(lstm_out))
 
     # Pass the LSTM output to the action and value branches
-    action_out = self.action_branch(self._features.view(-1, self.lstm_state_size))  # Ensures correct reshape
-    return action_out, [h.squeeze(0), c.squeeze(0)]
+    # action_out = self.action_branch(self._features.view(-1, self.lstm_state_size))  # Ensures correct reshape
+    return action_out, [h, c]
 
   @override(ModelV2)
   def get_initial_state(self):
