@@ -24,11 +24,11 @@ class BaselineCNNFCLSTM(RecurrentNetwork, nn.Module):
     nn.Module.__init__(self)
     super().__init__(obs_space, action_space, num_outputs, model_config, name)
     # Define import model parameters. TODO: Move these to config
-    self.lstm_state_size = 256
+    self.cell_size = self.lstm_state_size = 256
     self.cnn_output_size = 128
     self.fcnet_hiddens = 64
     self.post_preprocess_size = 0
-    self.conv_filters = [[16, [8, 8], 8], [128, [8, 8], 1]]
+    self.conv_filters = [[16, [8, 8], 8], [128, [11, 11], 1]]
 
     self.obs_size = get_preprocessor(obs_space)(obs_space).size
     self.original_space = getattr(obs_space, "original_space", obs_space)
@@ -44,6 +44,8 @@ class BaselineCNNFCLSTM(RecurrentNetwork, nn.Module):
     self.flatten, self.cnns = {}, {}
     for i, component in enumerate(self.flattened_input_space):
       if len(component.shape) != 3:
+        # TODO: Remove after debugging
+        continue
         flat_shape = int(np.product(component.shape))
         self.flatten[i] = nn.Sequential(OrderedDict([
           ('fc1', nn.Linear(flat_shape, self.fcnet_hiddens)),
@@ -85,7 +87,9 @@ class BaselineCNNFCLSTM(RecurrentNetwork, nn.Module):
     for out_channels, kernel_size, stride in self.conv_filters[:-1]:
       # padding = self._compute_padding(in_size, kernel_size, stride)  # Calculate padding
       padding, out_size = same_padding(in_size, kernel_size, stride)
-      layers.append(nn.Conv2d(in_channels, out_channels, kernel_size, stride, padding))
+      if np.any(padding):
+        layers.append(nn.ZeroPad2d(padding))
+      layers.append(nn.Conv2d(in_channels, out_channels, kernel_size, stride))
       layers.append(nn.ReLU())
       in_channels = out_channels  # Update in_channels for the next layer
       # in_size = self._compute_output_size(in_size, kernel_size, stride, padding)  # Update the output size
@@ -104,8 +108,10 @@ class BaselineCNNFCLSTM(RecurrentNetwork, nn.Module):
 
     # Add post cnn fc layers
     out_channels, kernel_size, stride = self.conv_filters[-1]
-    # out_size = self._compute_output_size(in_size, kernel_size, stride, padding)
+    # padding, out_size = same_padding(in_size, kernel_size, stride)
     # post_cnn_flatten_shape = out_channels * out_size[0] * out_size[1]
+    # cnn_out_shape = self.cnns[index](torch.zeros(*np.flip(component.shape))).shape
+    # post_cnn_flatten_shape = torch.squeeze(torch.zeros(*cnn_out_shape)).shape[0]
     post_cnn_flatten_shape = out_channels
     self.cnns[index].add_module('post_cnn_fc1', nn.Linear(post_cnn_flatten_shape, self.cnn_output_size))
     self.cnns[index].add_module('post_cnn_fc1_act', nn.ReLU())
@@ -124,8 +130,8 @@ class BaselineCNNFCLSTM(RecurrentNetwork, nn.Module):
   #
   # def _compute_output_size(self, input_size, kernel_size, stride, padding):
   #   """Helper function to compute the output size after a Conv2d layer with multi-dimensional kernel size."""
-  #   output_height = (input_size[0] + 2 * padding[0] - kernel_size[0]) // stride + 1
-  #   output_width = (input_size[1] + 2 * padding[1] - kernel_size[1]) // stride + 1
+  #   output_height = (input_size[0] + padding[2] + padding[3] - kernel_size[0]) // stride + 1
+  #   output_width = (input_size[1] + padding[0] + padding[1] - kernel_size[1]) // stride + 1
   #   return output_height, output_width
 
   @override(RecurrentNetwork)
@@ -148,15 +154,24 @@ class BaselineCNNFCLSTM(RecurrentNetwork, nn.Module):
 
       # If observation is not an image (non-3D), process it through FC layers
       if idx in self.flatten:
+        # TODO: Remove after debugging
+        continue
         # if len(obs_component) ==140:
         #   raise ValueError("obs_component is 140")
         if (len(obs_component.shape) == 1):
           # obs_component = torch.reshape(obs_component, (input_dict[SampleBatch.OBS].shape[0], -1))
-          obs_component = obs_component.view(len(input_dict), -1)
+          first_dim = len(input_dict) if obs_component.numel() % len(input_dict) == 0 else input_dict[SampleBatch.OBS].shape[0]
+          obs_component = obs_component.view(first_dim, -1)
         processed_inputs.append(self.flatten[idx](obs_component))
-      else:
+      elif idx in self.cnns:
         # If it's an image (3D), process it through the CNN layers
         img_inputs = obs_component.permute(0, 3, 1, 2)  # (B, C, H, W) format for CNN
+        # To debug, we print out the output shape after each layer of the cnn
+        # print(f"img_inputs shape: {img_inputs.shape}")
+        # x = img_inputs
+        # for cnn_layer in self.cnns[idx]:
+        #   x = cnn_layer(x)
+        #   print(f"img_inputs shape after layer {cnn_layer}: {x.shape}")
         processed_inputs.append(self.cnns[idx](img_inputs))
     # Concatenate all processed inputs (from both CNN and FC layers)
     concat_inputs = torch.cat(processed_inputs, dim=1)
@@ -176,7 +191,7 @@ class BaselineCNNFCLSTM(RecurrentNetwork, nn.Module):
 
     # Pass the concatenated input through the LSTM
     # lstm_out, [h, c] = self.lstm(lstm_inputs, [state[0].unsqueeze(0), state[1].unsqueeze(0)])
-    action_out, [h, c] = self.forward(lstm_inputs, state, seq_lens)
+    action_out, [h, c] = self.forward_rnn(lstm_inputs, state, seq_lens)
 
     # Apply the fully connected layer post-LSTM
     # self._features = self.post_lstm_fc1_act(self.post_lstm_fc1(lstm_out))
@@ -187,40 +202,26 @@ class BaselineCNNFCLSTM(RecurrentNetwork, nn.Module):
 
   @override(ModelV2)
   def get_initial_state(self):
-    h, c = torch.zeros(self.lstm_state_size), torch.zeros(self.lstm_state_size)
+    h = self.action_branch.weight.new(1, self.cell_size).zero_().squeeze(0)
+    c = self.action_branch.weight.new(1, self.cell_size).zero_().squeeze(0)
     return [h, c]
 
   @override(ModelV2)
   def value_function(self):
     return self.value_branch(self._features).view(-1)
 
-@override(RecurrentNetwork)
-def forward_rnn(self, inputs, state, seq_lens, **kwargs):
-  """
-  Forward pass through the LSTM.
-  Since `prev_a` is already concatenated into the inputs in the forward function,
-  we don't need to handle it separately here.
+  @override(RecurrentNetwork)
+  def forward_rnn(self, inputs, state, seq_lens, **kwargs):
+    # Pass the inputs through the LSTM
+    lstm_out, [h, c] = self.lstm(inputs, [state[0].unsqueeze(0), state[1].unsqueeze(0)])
 
-  Args:
-      inputs: Tensor of shape (B x T x input_size), where:
-          B is the batch dimension, T is the time dimension, and input_size is the size of the concatenated input.
-      state: A tuple of (h, c), where h is the hidden state and c is the cell state.
-      seq_lens: A tensor containing the sequence lengths for each sample in the batch.
+    # Apply the fully connected layer post-LSTM
+    self._features = self.post_lstm_fc1_act(self.post_lstm_fc1(lstm_out))
 
-  Returns:
-      action_out: The output after passing through the action branch.
-      new_state: The updated LSTM state (h, c).
-  """
+    # Pass the LSTM output to the action branch
+    action_out = self.action_branch(self._features.view(-1, self.lstm_state_size))  # Reshape for action output
+    # action_out = self.action_branch(self._features)  # Reshape for action output
 
-  # Pass the inputs through the LSTM
-  lstm_out, [h, c] = self.lstm(inputs, [state[0].unsqueeze(0), state[1].unsqueeze(0)])
-
-  # Apply the fully connected layer post-LSTM
-  self._features = self.post_lstm_fc1_act(self.post_lstm_fc1(lstm_out))
-
-  # Pass the LSTM output to the action branch
-  action_out = self.action_branch(self._features.view(-1, self.lstm_state_size))  # Reshape for action output
-
-  # Return the action output and the updated LSTM state
-  return action_out, [h.squeeze(0), c.squeeze(0)]
+    # Return the action output and the updated LSTM state
+    return action_out, [h.squeeze(0), c.squeeze(0)]
 
