@@ -28,7 +28,7 @@ class BaselineCNNLSTM(RecurrentNetwork, torch.nn.Module):
             model_config,
             name
     ):
-        torch.nn.Module.__init__(self)
+        nn.Module.__init__(self)
         super().__init__(obs_space, action_space, num_outputs, model_config, name)
         self.obs_size = get_preprocessor(obs_space)(obs_space).size
         self.input_shape = np.flip(

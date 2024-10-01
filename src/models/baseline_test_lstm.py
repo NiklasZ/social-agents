@@ -40,7 +40,7 @@ class BaselineCNNFCLSTM_test(RecurrentNetwork, nn.Module):
       "device": 'cpu',
       "conv_filters": [[16, [8, 8], 8], [128, [11, 11], 1]],
       "aux_loss": 'L1loss',
-      "fcnet_hiddens": [256],
+      "fcnet_hiddens": [64],
       'device': 'cpu',
 
     }
