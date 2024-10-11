@@ -14,6 +14,10 @@ from src.environment.wrappers import RGBObservationWrapper, FrameStacker, FullRG
     DeepmindObservationWrapper
 from src.models.baseline_cnn_lstm import BaselineCNNLSTM
 from src.models.baseline_cnn_fc_lstm import BaselineCNNFCLSTM
+from src.models.baseline_test_lstm import BaselineCNNFCLSTM_test
+from src.models.cnnfc_lstm import CNNFCLSTM_simplified
+from src.models.cnnfc_lstm2 import CNNFCLSTM_simplified as CNNFCLSTM_simplified2
+from src.models.baseline_cnn_lstm_addobs import BaselineCNNLSTM as BaselineCNNLSTM_addobs
 
 
 def register_models():
@@ -22,6 +26,18 @@ def register_models():
     )
     ModelCatalog.register_custom_model(
         'baseline_cnn_fc_lstm', BaselineCNNFCLSTM,
+    )
+    ModelCatalog.register_custom_model(
+        'baseline_test_lstm', BaselineCNNFCLSTM_test,
+    )
+    ModelCatalog.register_custom_model(
+        'cnnfc_lstm', CNNFCLSTM_simplified,
+    )
+    ModelCatalog.register_custom_model(
+        'cnnfc_lstm2', CNNFCLSTM_simplified2,
+    )
+    ModelCatalog.register_custom_model(
+        'baseline_cnn_lstm_addobs', BaselineCNNLSTM_addobs,
     )
 
 
@@ -88,6 +104,40 @@ MODELS = {
         'custom_model_config': {}
       },
     },
+    'baseline_test_lstm': {
+      'env_constructor': deepmind_observation_constructor(),
+      'model_config': {
+        'custom_model': 'baseline_test_lstm',
+        '_disable_preprocessor_api': True,  # prevents flattening of the observation via preprocessor
+        'custom_model_config': {}
+      },
+    },
+    'cnnfc_lstm': {
+      'env_constructor': deepmind_observation_constructor(),
+      'model_config': {
+        'custom_model': 'cnnfc_lstm',
+        '_disable_preprocessor_api': True,  # prevents flattening of the observation via preprocessor
+        'custom_model_config': {}
+      },
+    },
+    'cnnfc_lstm2': {
+        'env_constructor': deepmind_observation_constructor(),
+        'model_config': {
+            'custom_model': 'cnnfc_lstm2',
+            '_disable_preprocessor_api': True,  # prevents flattening of the observation via preprocessor
+            'custom_model_config': {}
+        },
+    },
+
+    'baseline_cnn_lstm_addobs': {
+        'env_constructor': deepmind_observation_constructor(),
+        'model_config': {
+            'custom_model': 'baseline_cnn_lstm_addobs',
+            '_disable_preprocessor_api': True,  # prevents flattening of the observation via preprocessor
+            'custom_model_config': {}
+        },
+    },
+
     'baseline_cnn_lstm': {
         'env_constructor': single_rgb_observation_constructor(),
         'model_config': {

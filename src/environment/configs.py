@@ -23,6 +23,7 @@ from src.deepmind.meltingpot.configs.substrates.paintball__king_of_the_hill impo
 from src.deepmind.meltingpot.configs.substrates.allelopathic_harvest__open import \
     get_config as get_config_allelopathic_open
 from src.deepmind.meltingpot.configs.substrates.predator_prey__open import get_config as get_config_predator_prey_open
+from src.deepmind.meltingpot.configs.substrates.predator_prey__open__position_visible import get_config as get_config_predator_prey_open__position_visible
 from src.deepmind.meltingpot.configs.substrates.territory__open import get_config as get_config_territory_open
 from src.deepmind.meltingpot.configs.substrates.prisoners_dilemma_in_the_matrix__arena import \
     get_config as get_config_prisoners_dilemma_in_the_matrix_arena
@@ -39,6 +40,7 @@ DEFAULT_ENV_SETTINGS = {
     'coins': COIN_DEFAULT_CONFIG,
     'king_of_the_hill': KING_OF_THE_HILL_DEFAULT_CONFIG,
     'predator_and_prey_open': None,
+    'predator_and_prey_open__position_visible': None,
     'prisoners_dilemma_arena': None,
     'territory_open': TERRITORY_OPEN_DEFAULT_CONFIG,
     'territory_rooms': None,
@@ -55,6 +57,8 @@ ENV_ALIASES = {
     'koth': 'king_of_the_hill',
     'papo': 'predator_and_prey_open',
     'predator_and_prey_open': 'papo',
+    'predator_and_prey_open__position_visible': 'papo_pv',
+    'papo_pv': 'predator_and_prey_open__position_visible',
     'prisa': 'prisoners_dilemma_arena',
     'prisoners_dilemma_arena': 'pris',
     'teroom': 'territory_rooms',
@@ -71,6 +75,7 @@ ENV_EVAL_METRIC_FUNCS = {
     'coins': stub_dict,
     'king_of_the_hill': KOTH_EVAL_METRICS_FUNCS,
     'predator_and_prey_open': stub_dict,
+    'predator_and_prey__open__position_visible': stub_dict,
     'prisoners_dilemma_arena': stub_dict,
     'territory_open': stub_dict,
     'territory_rooms': stub_dict,
@@ -83,6 +88,7 @@ ENV_TRAINING_METRICS_CALLBACKS = {
     'coins': CoinsMetricsCallback,
     'king_of_the_hill': KOTHMetricsCallback,
     'predator_and_prey_open': None,
+    'predator_and_prey_open__position_visible': None,
     'prisoners_dilemma_arena': None,
     'territory_open': TerroMetricsCallback,
     'territory_rooms': None,
@@ -95,6 +101,7 @@ PLAYABLE_MAPS = {
     'coins': COINS_MAPS,
     'king_of_the_hill': KING_OF_THE_HILL_MAPS,
     'predator_and_prey_open': PREDATOR_AND_PREY_OPEN_MAPS,
+    'predator_and_prey_open__position_visible': PREDATOR_AND_PREY_OPEN_MAPS,
     'prisoners_dilemma_arena': PRISONERS_DILEMMA_IN_THE_MATRIX_ARENA_MAPS,
     'territory_open': TERRITORY_OPEN_MAPS,
     'territory_rooms': TERRITORY_ROOMS_MAPS,
@@ -107,6 +114,7 @@ MELTING_POT_CONFIG_FUNCS = {
     'coins': get_config_coins,
     'king_of_the_hill': get_config_koth,
     'predator_and_prey_open': get_config_predator_prey_open,
+    'predator_and_prey_open__position_visible': get_config_predator_prey_open__position_visible,
     'prisoners_dilemma_arena': get_config_prisoners_dilemma_in_the_matrix_arena,
     'territory_open': get_config_territory_open,
     'territory_rooms': get_config_territory_rooms,

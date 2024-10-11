@@ -102,6 +102,7 @@ SUBSTRATES: Set[str] = frozenset({
     'paintball__king_of_the_hill',
     'predator_prey__alley_hunt',
     'predator_prey__open',
+    'predator_prey__open__position_visible'
     'predator_prey__orchard',
     'predator_prey__random_forest',
     'prisoners_dilemma_in_the_matrix__arena',

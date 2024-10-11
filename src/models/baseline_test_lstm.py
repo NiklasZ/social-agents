@@ -40,7 +40,7 @@ class BaselineCNNFCLSTM_test(RecurrentNetwork, nn.Module):
       "device": 'cpu',
       "conv_filters": [[16, [8, 8], 8], [128, [11, 11], 1]],
       "aux_loss": 'L1loss',
-      "fcnet_hiddens": [64],
+      "fcnet_hiddens": [256],
       'device': 'cpu',
 
     }
@@ -133,7 +133,9 @@ class BaselineCNNFCLSTM_test(RecurrentNetwork, nn.Module):
         prev_a_r.append(torch.reshape(prev_a, [-1, self.action_dim]))
     # Prev rewards.
     if self.model_config["lstm_use_prev_reward"]:
-      prev_a_r.append(torch.reshape(input_dict[SampleBatch.PREV_REWARDS].float(), [-1, 1]))
+      ## TODO: CHECK what bug l
+      prev_reward = input_dict[SampleBatch.PREV_REWARDS].float() if SampleBatch.PREV_REWARDS in input_dict else torch.zeros_like(input_dict[SampleBatch.PREV_ACTIONS])
+      prev_a_r.append(torch.reshape(prev_reward, [-1, 1]))
 
     # Concat prev. actions + rewards to the "main" input.
     if prev_a_r:
