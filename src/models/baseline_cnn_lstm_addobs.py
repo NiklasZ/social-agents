@@ -33,6 +33,7 @@ class BaselineCNNLSTM(RecurrentNetwork, torch.nn.Module):
         # self.obs_size = get_preprocessor(obs_space)(obs_space).size
 
         self.original_space = getattr(obs_space, "original_space", obs_space)
+        self.input_field_name = ['RGB', 'STAMINA', 'COLLECTIVE_REWARD']
         # rgb = self.original_space['RGB']
 
         # self.flattened_input_space = flatten_space(self.original_space)
@@ -43,7 +44,7 @@ class BaselineCNNLSTM(RecurrentNetwork, torch.nn.Module):
         self.cnn_output_size = 64
         self.lstm_input_size = self.cnn_output_size + self.action_space.n
         for name in self.original_space:
-            if name != 'RGB':
+            if (name in self.input_field_name) and (name != 'RGB'):
                 self.lstm_input_size += int(np.prod(self.original_space[name].shape))
 
         # Set to give model access to previous action
@@ -109,7 +110,7 @@ class BaselineCNNLSTM(RecurrentNetwork, torch.nn.Module):
         for name in self.original_space:
             if name == 'RGB':
                 processed_inputs.append(self.cnn(orig_obs[name].float().permute(0, 3, 1, 2)))
-            else:
+            elif name in self.input_field_name:
                 tmp = orig_obs[name].float()
                 processed_inputs.append(tmp.view(tmp.size(0), -1))
         prev_a = one_hot(input_dict[SampleBatch.PREV_ACTIONS].float(), self.action_space)

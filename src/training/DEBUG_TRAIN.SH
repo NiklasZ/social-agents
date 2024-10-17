@@ -1,0 +1,1 @@
+new  --num-workers 1   --agent-roles predator prey   --env predator_and_prey_open   --map-name 10x10_example   --model-name baseline_cnn_lstm   --episodes-per-training-iteration 1   --checkpoint-frequency 25   --model-sharing independent   --sgd-minibatch-size 128   --training-iterations 10   --num-gpus 0   --rllib-path /e/predator_prey/open_field_10x10/trial_0 --debug-mode
